@@ -183,6 +183,21 @@ body { background: linear-gradient(135deg, #dbeafe, #c7d2fe); padding: 20px; min
     </div>
 </div>
 
+
+<!-- مودال قراءة إجابات الطلاب وتصحيحها -->
+<div id="studentAnswersModal" class="modal" style="z-index:1060;">
+  <div class="modal-content" style="max-width:1200px;width:96%;max-height:90vh;display:flex;flex-direction:column;">
+    <button class="modal-close" onclick="closeStudentAnswers()">✕</button>
+    <h2 style="color:#1e3a8a;">📚 إجابات الطلاب والتصحيح</h2>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+      <select id="answersWorksheetFilter" onchange="loadStudentAnswers()" style="padding:10px;border:1px solid #cbd5e1;border-radius:8px;flex:1;min-width:220px;">
+        <option value="">كل أوراق العمل</option>
+      </select>
+      <button class="action-btn primary" onclick="loadStudentAnswers()">🔄 تحديث الإجابات</button>
+    </div>
+    <div id="studentAnswersList" style="overflow:auto;flex:1;"><div class="loading">⏳ جارٍ تحميل إجابات الطلاب...</div></div>
+  </div>
+</div>
 <!-- مودال Live Worksheets -->
 <div id="liveWorksheetsModal" class="modal" style="z-index: 1050;">
     <div class="modal-content" style="max-width: 1200px; width: 95%; height: 90vh; display: flex; flex-direction: column;">
@@ -612,6 +627,13 @@ document.addEventListener('DOMContentLoaded', () => {
         lwsBtn.innerHTML = '📝 Live Worksheets';
         lwsBtn.onclick = openLiveWorksheets;
         buttonsGrid.appendChild(lwsBtn);
+
+        const answersBtn = document.createElement('button');
+        answersBtn.className = 'action-btn success';
+        answersBtn.style.background = 'linear-gradient(135deg, #059669, #047857)';
+        answersBtn.innerHTML = '📚 إجابات الطلاب والتصحيح';
+        answersBtn.onclick = openStudentAnswers;
+        buttonsGrid.appendChild(answersBtn);
     }
 });
 
@@ -774,6 +796,16 @@ async function saveLiveWorksheet() {
     if (!title) return alert('أدخل عنوان الورقة.');
     if (!currentLwsImageFile) return alert('ارفع صورة الورقة أولاً.');
     if (currentLwsFields.length === 0) return alert('أضف حقول إجابة.');
+    // إعداد مفتاح الإجابة من المعلم لكل حقل قبل حفظ الورقة
+    const answerKey = {};
+    for (const field of currentLwsFields) {
+        const promptLabel = field.type === 'long_text' ? 'الإجابة النموذجية للسؤال النصي الطويل' :
+            field.type === 'rearrange' ? 'الترتيب الصحيح للكلمات' :
+            field.type === 'mcq' ? 'الإجابة الصحيحة للسؤال (اكتب الاختيار/الإجابة)' :
+            'الإجابة الصحيحة لهذا السؤال';
+        const keyValue = prompt(promptLabel + '\\n(معرّف السؤال: ' + field.id + ')\\nاتركه فارغًا إذا لا تريد تصحيحه تلقائيًا:');
+        if (keyValue !== null && keyValue.trim() !== '') answerKey[field.id] = keyValue.trim();
+    }
     const btn = document.querySelector('button[onclick="saveLiveWorksheet()"]');
     btn.disabled = true; btn.textContent = '⏳ جارٍ الرفع...';
     try {
@@ -781,7 +813,7 @@ async function saveLiveWorksheet() {
         const fileRef = storageRef.child('worksheets/' + Date.now() + '_' + currentLwsImageFile.name);
         const uploadTask = await fileRef.put(currentLwsImageFile);
         currentLwsImageUrl = await uploadTask.ref.getDownloadURL();
-        await firestoreDb.collection('worksheets').add({ title: title, imageUrl: currentLwsImageUrl, fields: currentLwsFields, createdAt: firebase.firestore.FieldValue.serverTimestamp(), createdBy: firebaseCurrentUser.uid, schoolId: firebaseProfile ? (firebaseProfile.schoolId || 'global') : 'global' });
+        await firestoreDb.collection('worksheets').add({ title: title, imageUrl: currentLwsImageUrl, fields: currentLwsFields, answerKey: answerKey, createdAt: firebase.firestore.FieldValue.serverTimestamp(), createdBy: firebaseCurrentUser.uid, schoolId: firebaseProfile ? (firebaseProfile.schoolId || 'global') : 'global' });
         alert('✅ تم الحفظ بنجاح!'); showLwsList();
     } catch (e) { alert('❌ خطأ: ' + e.message); } finally { btn.disabled = false; btn.textContent = '💾 حفظ الورقة'; }
 }
@@ -938,6 +970,108 @@ window.submitStudentAnswers = function() {
         alert('تعذر إرسال الإجابات: ' + e.message + '\\nتحقق من نشر قواعد Firestore الخاصة بـ student_answers.');
     });
 }
+
+// ==================== إجابات الطلاب والتصحيح ====================
+function openStudentAnswers() {
+  document.getElementById('studentAnswersModal').style.display = 'flex';
+  loadAnswerWorksheetFilter().then(loadStudentAnswers);
+}
+function closeStudentAnswers() {
+  document.getElementById('studentAnswersModal').style.display = 'none';
+}
+async function loadAnswerWorksheetFilter() {
+  const select = document.getElementById('answersWorksheetFilter');
+  const prior = select.value;
+  try {
+    const snap = await firestoreDb.collection('worksheets').orderBy('createdAt','desc').get();
+    select.innerHTML = '<option value="">كل أوراق العمل</option>';
+    snap.forEach(doc => {
+      const op = document.createElement('option');
+      op.value = doc.id;
+      op.textContent = doc.data().title || 'ورقة عمل بدون عنوان';
+      select.appendChild(op);
+    });
+    if (prior && [...select.options].some(o => o.value === prior)) select.value = prior;
+  } catch(e) {
+    console.error(e);
+  }
+}
+function safeAnswerText(value) {
+  return String(value == null ? '' : value).replace(/[&<>"']/g, ch => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[ch]));
+}
+async function loadStudentAnswers() {
+  const list = document.getElementById('studentAnswersList');
+  list.innerHTML = '<div class="loading">⏳ جارٍ تحميل الإجابات...</div>';
+  try {
+    let query = firestoreDb.collection('student_answers').orderBy('submittedAt','desc');
+    const worksheetId = document.getElementById('answersWorksheetFilter').value;
+    if (worksheetId) query = query.where('worksheetId','==',worksheetId);
+    const snap = await query.get();
+    if (snap.empty) {
+      list.innerHTML = '<div class="empty-message">لا توجد إجابات مرسلة حتى الآن.</div>';
+      return;
+    }
+    list.innerHTML = '';
+    for (const doc of snap.docs) {
+      const a = doc.data();
+      const answerMap = a.answers || {};
+      const worksheetDoc = await firestoreDb.collection('worksheets').doc(a.worksheetId).get();
+      const worksheetData = worksheetDoc.exists ? worksheetDoc.data() : {};
+      const answerKey = worksheetData.answerKey || {};
+      const norm = v => String(v == null ? '' : v).trim().toLowerCase().replace(/[\\s.,!?;:،؛]/g,'');
+      let correctFields = [];
+      let gradedCount = 0;
+      let correctCount = 0;
+      const answerRows = Object.entries(answerMap).map(([fieldId, value], index) => {
+        const hasKey = Object.prototype.hasOwnProperty.call(answerKey, fieldId) && String(answerKey[fieldId]).trim() !== '';
+        if (hasKey) {
+          gradedCount++;
+          if (norm(value) === norm(answerKey[fieldId])) { correctFields.push(fieldId); correctCount++; }
+        }
+        return `
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;border-bottom:1px solid #e2e8f0;padding:10px 4px;">
+          <div style="flex:1;min-width:220px;"><b>السؤال ${index+1}</b><div style="white-space:pre-wrap;overflow-wrap:anywhere;color:#334155;">${safeAnswerText(value || '— بدون إجابة —')}</div>
+          <small style="color:#64748b;">${hasKey ? 'الإجابة النموذجية: '+safeAnswerText(answerKey[fieldId]) : 'لا يوجد مفتاح إجابة لهذا السؤال'}</small></div>
+          <span style="font-weight:bold;color:${hasKey && norm(value) === norm(answerKey[fieldId]) ? '#047857' : hasKey ? '#b91c1c' : '#64748b'};">${hasKey ? (norm(value) === norm(answerKey[fieldId]) ? '✔ صحيح (+10)' : '✘ غير صحيح (0)') : 'غير مصحح تلقائيًا'}</span>
+        </div>`;
+      }).join('');
+      const card = document.createElement('section');
+      card.style.cssText = 'border:1px solid #cbd5e1;border-radius:12px;padding:16px;margin:0 0 14px;background:#fff;';
+      card.innerHTML = `
+        <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;background:#f1f5f9;padding:12px;border-radius:8px;">
+          <div><h3 style="margin:0;color:#1e3a8a;">${safeAnswerText(a.studentName || 'طالب')}</h3>
+          <div>الصف: ${safeAnswerText(a.studentClass || '—')} | الورقة: ${safeAnswerText(a.worksheetTitle || '—')}</div>
+          <small>تاريخ الإرسال: ${a.submittedAt && a.submittedAt.toDate ? a.submittedAt.toDate().toLocaleString('ar-QA') : '—'}</small></div>
+          <div style="text-align:center;min-width:130px;"><div style="font-weight:bold;color:#047857;">التصحيح التلقائي</div><div id="score-${doc.id}" style="font-size:28px;font-weight:900;">${correctCount*10} / ${gradedCount*10}</div><small>تم تصحيح ${gradedCount} سؤال من ${Object.keys(answerMap).length}</small></div>
+        </div>
+        <div style="margin-top:12px;">${answerRows}</div>
+        <div style="display:flex;justify-content:flex-end;margin-top:12px;">
+          <button class="action-btn success" onclick="saveAutomaticStudentScore('${doc.id}',${JSON.stringify(correctFields).replace(/"/g,'&quot;')},${correctCount*10},${gradedCount*10})">💾 حفظ الدرجة التلقائية</button>
+        </div>`;
+      list.appendChild(card);
+    }
+  } catch(e) {
+    list.innerHTML = '<div class="error">تعذر قراءة إجابات الطلاب: '+safeAnswerText(e.message || e)+'</div>';
+  }
+}
+async function saveAutomaticStudentScore(answerId, correctFields, score, maxScore) {
+  try {
+    await firestoreDb.collection('student_answers').doc(answerId).update({
+      correctFields: correctFields,
+      score: score,
+      maxScore: maxScore,
+      gradingMode: 'automatic',
+      gradedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      gradedBy: firebaseCurrentUser.uid
+    });
+    alert('✅ تم حفظ التصحيح التلقائي. الدرجة: ' + score + ' من ' + maxScore);
+  } catch(e) {
+    alert('❌ تعذر حفظ الدرجة: ' + e.message + '\\nقواعد Firestore الحالية تسمح بتعديل إجابات الطلاب للمدير العام فقط.');
+  }
+}
+
 </script>
 </body>
 </html>
