@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>نظام النقاط والتحفيز المدرسي - المدير العام</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; font-family: Tahoma, Arial; }
+body { background: linear-gradient(135deg, #dbeafe, #c7d2fe); padding: 20px; min-height: 100vh; }
+.container { max-width: 1400px; margin: auto; display: none; }
+.header { background: white; border-radius: 25px; padding: 25px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); text-align: center; }
+.header h1 { color: #4338ca; margin-bottom: 10px; font-size: 28px; }
+.header p { color: #666; font-size: 16px; }
+.header .badge { background: linear-gradient(135deg, #4338ca, #8b5cf6); color: white; padding: 8px 20px; border-radius: 30px; display: inline-block; margin-top: 15px; font-weight: bold; }
+.datetime-rectangle { background: linear-gradient(135deg, #1e293b, #0f172a); padding: 10px 20px; border-radius: 20px; border: 2px solid #d4af37; display: inline-block; margin-top: 15px; direction: ltr; }
+.datetime-rectangle .time-text { color: #22c55e; font-size: 18px; font-weight: bold; font-family: monospace; letter-spacing: 2px; }
+.datetime-rectangle .date-text { color: #d4af37; font-size: 12px; font-weight: bold; margin-bottom: 3px; font-family: monospace; }
+.sync-status { text-align: center; background: #e0f2fe; color: #075985; padding: 10px; border-radius: 12px; margin: 15px auto; max-width: 400px; font-weight: bold; }
+.buttons-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-top: 25px; }
+.action-btn { padding: 18px 20px; border: none; border-radius: 16px; color: white; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.3s; }
+.action-btn:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(0,0,0,0.2); }
+.action-btn.primary { background: linear-gradient(135deg, #4338ca, #6366f1); }
+.action-btn.success { background: linear-gradient(135deg, #16a34a, #22c55e); }
+.action-btn.warning { background: linear-gradient(135deg, #ea580c, #f59e0b); }
+.action-btn.danger { background: linear-gradient(135deg, #dc2626, #ef4444); }
+.action-btn.info { background: linear-gradient(135deg, #0891b2, #06b6d4); }
+.section { background: white; border-radius: 20px; padding: 25px; margin-top: 25px; box-shadow: 0 5px 20px rgba(0,0,0,0.08); }
+.section h2 { color: #4338ca; margin-bottom: 20px; font-size: 24px; }
+.login-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); z-index: 10000; display: none; justify-content: center; align-items: center; padding: 20px; }
+.login-card { background: white; border-radius: 30px; padding: 40px 30px; width: 100%; max-width: 450px; text-align: center; box-shadow: 0 25px 45px rgba(0,0,0,0.2); }
+.login-card h2 { color: #4338ca; margin-bottom: 8px; font-size: 22px; }
+.login-card p { color: #666; margin-bottom: 20px; font-size: 14px; }
+.login-card input { width: 100%; padding: 15px; margin: 10px 0; border: 2px solid #e2e8f0; border-radius: 25px; font-size: 16px; text-align: right; direction: ltr; }
+.login-card input:focus { outline: none; border-color: #4338ca; box-shadow: 0 0 0 3px rgba(67,56,202,0.1); }
+.login-card button { width: 100%; padding: 15px; background: linear-gradient(135deg, #4338ca, #8b5cf6); color: white; border: none; border-radius: 25px; font-size: 18px; font-weight: bold; cursor: pointer; transition: 0.3s; margin-top: 10px; }
+.login-card button:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(67,56,202,0.3); }
+.login-card .error { color: #ef4444; margin: 10px 0; font-size: 14px; min-height: 20px; }
+.remember-me { display: flex; align-items: center; gap: 8px; justify-content: center; margin: 10px 0; font-size: 14px; color: #555; cursor: pointer; }
+.remember-me input { width: 18px; height: 18px; cursor: pointer; }
+.modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; justify-content: center; align-items: center; padding: 20px; }
+.modal-content { background: white; border-radius: 25px; padding: 25px; max-width: 900px; width: 100%; max-height: 85vh; overflow-y: auto; direction: rtl; position: relative; }
+.modal-close { position: absolute; top: 15px; left: 15px; background: #dc2626; color: white; border: none; width: 42px; height: 42px; border-radius: 50%; font-size: 20px; font-weight: bold; cursor: pointer; z-index: 10; }
+.modal h2 { color: #e91e63; margin-bottom: 20px; text-align: center; }
+.requests-list { max-height: 400px; overflow-y: auto; }
+.country-box { background: #e0e7ff; border: 1px solid #c7d2fe; border-radius: 14px; padding: 12px; margin: 10px 0; }
+.country-box h3 { color: #312e81; margin-bottom: 10px; font-size: 18px; }
+.school-box { background: white; border: 1px solid #dbeafe; border-radius: 12px; padding: 12px; margin: 10px 0; }
+.school-box h4 { color: #0f172a; margin-bottom: 8px; font-size: 16px; }
+.request-card { border-top: 1px solid #e2e8f0; padding: 12px 0; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; align-items: center; }
+.request-info { flex: 1; min-width: 200px; }
+.request-info b { color: #1e40af; }
+.request-info small { color: #64748b; display: block; margin-top: 4px; }
+.request-actions { display: flex; gap: 6px; }
+.request-actions button { padding: 8px 14px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; color: white; font-size: 13px; }
+.approve-btn { background: #16a34a; }
+.reject-btn { background: #dc2626; }
+.empty-message { text-align: center; padding: 30px; color: #15803d; font-weight: bold; background: white; border-radius: 12px; }
+.loading { text-align: center; padding: 30px; color: #666; }
+.stat-card { background: linear-gradient(135deg, #e0e7ff, #c7d2fe); border-radius: 15px; padding: 20px; text-align: center; }
+.stat-card .number { font-size: 32px; font-weight: bold; color: #4338ca; }
+.stat-card .label { font-size: 14px; color: #555; margin-top: 5px; }
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; }
+.manual-approve-box { background: #f0fdf4; border: 2px solid #86efac; border-radius: 15px; padding: 20px; margin-top: 20px; }
+.manual-approve-box h3 { color: #15803d; margin-bottom: 15px; }
+.manual-approve-box input { width: 100%; padding: 12px; border: 2px solid #cbd5e1; border-radius: 10px; margin-bottom: 10px; font-size: 14px; }
+.manual-approve-box button { background: #16a34a; color: white; border: none; padding: 12px 30px; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 15px; }
+.staff-search { margin-bottom: 15px; }
+.staff-search input { width: 100%; padding: 12px; border: 2px solid #cbd5e1; border-radius: 12px; font-size: 15px; }
+.staff-search input:focus { outline: none; border-color: #4338ca; box-shadow: 0 0 0 3px rgba(67,56,202,0.1); }
+
+/* تنسيقات Live Worksheets */
+.lws-tool-btn { background: #e2e8f0; border: 1px solid #cbd5e1; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-weight: bold; color: #334155; transition: 0.2s; }
+.lws-tool-btn:hover { background: #cbd5e1; }
+.lws-field { position: absolute; background: rgba(255,255,255,0.9); border: 2px solid #4338ca; border-radius: 5px; padding: 2px; cursor: move; box-shadow: 0 2px 5px rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: center; font-size: 12px; overflow: hidden; min-width: 50px; min-height: 30px; }
+.lws-field:hover { border-color: #e91e63; z-index: 10; }
+.lws-field .delete-field-btn { position: absolute; top: -10px; right: -10px; background: #dc2626; color: white; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 12px; cursor: pointer; display: none; align-items: center; justify-content: center; }
+.lws-field:hover .delete-field-btn { display: flex; }
+.lws-field input, .lws-field textarea { width: 100%; height: 100%; border: none; background: transparent; text-align: center; font-family: inherit; outline: none; pointer-events: none; }
+</style>
+</head>
+<body>
+
+<!-- شاشة تسجيل الدخول -->
+<div id="loginScreen" class="login-overlay">
+    <div class="login-card">
+        <h2>📚 نظام النقاط والتحفيز المدرسي</h2>
+        <p>لوحة المدير العام</p>
+        <input type="email" id="loginEmail" placeholder="البريد الإلكتروني" dir="ltr" value="a.atia1201@education.qa">
+        <input type="password" id="loginPassword" placeholder="كلمة المرور">
+        <label class="remember-me">
+            <input type="checkbox" id="rememberMe" checked>
+            <span>🔒 تذكرني (دخول تلقائي في المرات القادمة)</span>
+        </label>
+        <button id="loginBtn">🔐 دخول</button>
+        <div id="loginError" class="error"></div>
+    </div>
+</div>
+
+<!-- الواجهة الرئيسية -->
+<div id="mainApp" class="container">
+    <div class="header">
+        <h1>👨‍💼 لوحة المدير العام</h1>
+        <p>إدارة طلبات الموظفين والمدارس</p>
+        <div class="badge">📧 <span id="currentUserEmail">—</span></div>
+        <div class="datetime-rectangle" id="datetimeDisplay">
+            <div class="date-text">📅 جاري التحميل...</div>
+            <div class="time-text">🕐 --:--:--</div>
+        </div>
+    </div>
+
+    <div id="syncStatus" class="sync-status">☁️ جاري الاتصال...</div>
+
+    <div class="buttons-grid">
+        <button class="action-btn primary" id="refreshBtn">🔄 تحديث</button>
+        <button class="action-btn info" id="requestsBtn">👥 طلبات الموظفين</button>
+        <button class="action-btn success" id="staffListBtn">👨‍🏫 الموظفون المعتمدون</button>
+        <button class="action-btn warning" id="manualApproveBtn">➕ اعتماد يدوي</button>
+        <button class="action-btn danger" id="logoutBtn">🚪 تسجيل الخروج</button>
+    </div>
+
+    <div class="section">
+        <h2>📊 إحصائيات النظام</h2>
+        <div class="stats-grid">
+            <div class="stat-card"><div class="number" id="totalRequests">0</div><div class="label">طلبات معلقة</div></div>
+            <div class="stat-card"><div class="number" id="totalStaff">0</div><div class="label">موظفون معتمدون</div></div>
+            <div class="stat-card"><div class="number" id="totalSchools">0</div><div class="label">مدارس مسجلة</div></div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>📋 آخر الطلبات المعلقة</h2>
+        <div id="quickRequestsList" class="loading">جارٍ التحميل...</div>
+    </div>
+</div>
+
+<!-- مودال طلبات الموظفين -->
+<div id="requestsModal" class="modal">
+    <div class="modal-content">
+        <button class="modal-close" onclick="document.getElementById('requestsModal').style.display='none'">✕</button>
+        <h2>👥 طلبات الموظفين المعلقة</h2>
+        <div id="requestsList" class="requests-list"><div class="loading">جارٍ التحميل...</div></div>
+        <div style="text-align:center; margin-top:20px;">
+            <button class="action-btn primary" onclick="loadAllRequests()">🔄 تحديث القائمة</button>
+        </div>
+    </div>
+</div>
+
+<!-- مودال إدارة الموظفين المعتمدين -->
+<div id="staffListModal" class="modal">
+    <div class="modal-content" style="max-width:1100px;">
+        <button class="modal-close" onclick="document.getElementById('staffListModal').style.display='none'">✕</button>
+        <h2>👨‍🏫 إدارة الموظفين المعتمدين</h2>
+        <div class="staff-search">
+            <input type="search" id="staffSearchInput" placeholder="🔎 ابحث بالبريد / الدولة / المدرسة / المادة...">
+        </div>
+        <div id="staffListContainer" style="max-height:60vh; overflow-y:auto;">
+            <div class="loading">⏳ جارٍ تحميل الموظفين...</div>
+        </div>
+        <div style="text-align:center; margin-top:20px;">
+            <button class="action-btn primary" onclick="loadAllStaff()">🔄 تحديث القائمة</button>
+        </div>
+    </div>
+</div>
+
+<!-- مودال الاعتماد اليدوي -->
+<div id="manualApproveModal" class="modal">
+    <div class="modal-content" style="max-width:600px;">
+        <button class="modal-close" onclick="document.getElementById('manualApproveModal').style.display='none'">✕</button>
+        <h2>➕ اعتماد موظف يدوياً</h2>
+        <div class="manual-approve-box">
+            <h3>أدخل بريد الموظف المسجل</h3>
+            <p style="color:#666; font-size:13px; margin-bottom:15px;">سيتم البحث عن حسابه في Firebase وتفعيله إذا كان موجوداً.</p>
+            <input type="email" id="manualApproveEmail" placeholder="employee@education.qa" dir="ltr">
+            <button id="manualApproveSubmit">✅ اعتماد الآن</button>
+            <div id="manualApproveMessage" style="margin-top:15px; font-weight:bold;"></div>
+        </div>
+    </div>
+</div>
+
+<!-- مودال Live Worksheets -->
+<div id="liveWorksheetsModal" class="modal" style="z-index: 1050;">
+    <div class="modal-content" style="max-width: 1200px; width: 95%; height: 90vh; display: flex; flex-direction: column;">
+        <button class="modal-close" onclick="closeLiveWorksheets()">✕</button>
+        <h2>📝 Live Worksheets</h2>
+        <div id="lwsListView" style="flex: 1; overflow-y: auto;">
+            <div style="text-align: center; margin-bottom: 20px;">
+                <button class="action-btn primary" onclick="showCreateWorksheet()" style="font-size: 18px;">➕ إنشاء ورقة جديدة</button>
+            </div>
+            <div id="lwsList" class="loading">⏳ جارٍ تحميل الأوراق...</div>
+        </div>
+        <div id="lwsEditorView" style="display: none; flex: 1; flex-direction: column;">
+            <div style="display: flex; gap: 10px; margin-bottom: 15px; align-items: center; background: #f8fafc; padding: 10px; border-radius: 10px; flex-wrap: wrap;">
+                <input type="text" id="lwsTitle" placeholder="عنوان ورقة العمل..." style="padding: 10px; border-radius: 8px; border: 1px solid #ccc; flex: 1; min-width: 200px;">
+                <select id="lwsTemplateSelect" style="padding: 10px; border-radius: 8px; border: 1px solid #ccc;" onchange="applySmartTemplate()">
+                    <option value="">-- تطبيق قالب ذكي --</option>
+                    <option value="A">قالب A (4 فراغات + 2 كتابة)</option>
+                    <option value="B">قالب B (4 اختيار + 2 ترتيب + 2 تصحيح)</option>
+                    <option value="C">قالب C (5 فراغات + 2 تصحيح)</option>
+                </select>
+                <button class="action-btn success" onclick="saveLiveWorksheet()" style="padding: 10px 20px;">💾 حفظ الورقة</button>
+                <button class="action-btn danger" onclick="showLwsList()" style="padding: 10px 20px;">إلغاء</button>
+            </div>
+            <div style="display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap;">
+                <span style="font-weight: bold; padding: 5px;">إضافة حقل:</span>
+                <button class="lws-tool-btn" onclick="addField('short_text')">📝 نص قصير</button>
+                <button class="lws-tool-btn" onclick="addField('long_text')">📋 نص طويل</button>
+                <button class="lws-tool-btn" onclick="addField('mcq')">🔘 اختيار من متعدد</button>
+                <button class="lws-tool-btn" onclick="addField('correct')">✏️ تصحيح خطأ</button>
+                <button class="lws-tool-btn" onclick="addField('rearrange')">🔀 ترتيب كلمات</button>
+            </div>
+            <div style="flex: 1; overflow: auto; border: 2px dashed #ccc; border-radius: 10px; position: relative; background: #f1f5f9; text-align: center; padding: 20px;" id="lwsCanvasContainer">
+                <input type="file" id="lwsFileInput" accept="image/*,application/pdf" style="display: none;" onchange="handleFileUpload(event)">
+                <div id="lwsUploadArea" onclick="document.getElementById('lwsFileInput').click()" style="cursor: pointer; padding: 50px;">
+                    <div style="font-size: 50px;">📄</div>
+                    <h3 style="color: #475569; margin-top: 10px;">انقر هنا لرفع ورقة العمل (صورة أو PDF)</h3>
+                    <p style="color: #94a3b8;">سيتم تحويلها إلى صورة تفاعلية</p>
+                </div>
+                <div id="lwsWorkspace" style="display: none; position: relative; display: inline-block;">
+                    <img id="lwsBaseImage" style="max-width: 100%; display: block; user-select: none;">
+                    <div id="lwsFieldsLayer" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div><script>
+// ==================== Firebase Configuration ====================
+const firebaseConfig = {
+    apiKey: "AIzaSyCAeHOVGUpG7WcPcUh0XtBvmTwLGdcBCJE",
+    authDomain: "school-points-qatar.firebaseapp.com",
+    projectId: "school-points-qatar",
+    storageBucket: "school-points-qatar.firebasestorage.app",
+    messagingSenderId: "689880020347",
+    appId: "1:689880020347:web:24305b6f89ac3448acb9de"
+};
+if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+const firebaseAuth = firebase.auth();
+const firestoreDb = firebase.firestore();
+const usersRef = firestoreDb.collection('users');
+const requestsRef = firestoreDb.collection('staffRequests');
+const schoolsRef = firestoreDb.collection('schools');
+
+const ADMIN_UID = 'hwPgzTQbdfUJa45G2Wwc79ANNJE2';
+const ADMIN_EMAIL = 'a.atia1201@education.qa';
+
+let firebaseCurrentUser = null;
+let firebaseProfile = null;
+
+function isValidEmail(email) {
+    return email && email.toLowerCase().endsWith('@education.qa');
+}
+
+function showLogin() {
+    document.getElementById('loginScreen').style.display = 'flex';
+    document.getElementById('mainApp').style.display = 'none';
+}
+
+function showMainApp() {
+    // إذا كان الرابط خاصاً بطالب، لا تظهر لوحة المدير أبداً!
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('student') === 'true') {
+        return; // اخرج من الدالة ولا تفتح لوحة المدير
+    }
+
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('mainApp').style.display = 'block';
+    document.getElementById('currentUserEmail').textContent = firebaseCurrentUser ? firebaseCurrentUser.email : '—';
+    updateDateTime();
+}
+function updateDateTime() {
+    const now = new Date();
+    const el = document.getElementById('datetimeDisplay');
+    if (!el) return;
+    const timeStr = now.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const dateStr = now.toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' });
+    el.innerHTML = '<div class="date-text">📅 ' + dateStr + '</div><div class="time-text">🕐 ' + timeStr + '</div>';
+}
+
+// ==================== تسجيل الدخول ====================
+document.getElementById('loginBtn').addEventListener('click', async function() {
+    const email = document.getElementById('loginEmail').value.trim().toLowerCase();
+    const password = document.getElementById('loginPassword').value;
+    const rememberMe = document.getElementById('rememberMe').checked;
+    const errorDiv = document.getElementById('loginError');
+
+    if (!email) { errorDiv.textContent = '❌ الرجاء إدخال البريد الإلكتروني'; return; }
+    if (!isValidEmail(email)) { errorDiv.textContent = '❌ البريد يجب أن ينتهي بـ @education.qa'; return; }
+    if (!password) { errorDiv.textContent = '❌ الرجاء إدخال كلمة المرور'; return; }
+
+    errorDiv.style.color = '#f59e0b';
+    errorDiv.textContent = '⏳ جاري التحقق...';
+
+    try {
+        await firebaseAuth.setPersistence(rememberMe ? firebase.auth.Auth.Persistence.LOCAL : firebase.auth.Auth.Persistence.SESSION);
+        const cred = await firebaseAuth.signInWithEmailAndPassword(email, password);
+        const user = cred.user;
+        const profileSnap = await usersRef.doc(user.uid).get();
+        
+        if (!profileSnap.exists) {
+            await firebaseAuth.signOut();
+            errorDiv.style.color = '#dc2626';
+            errorDiv.textContent = '❌ لا يوجد ملف صلاحيات لهذا الحساب';
+            return;
+        }
+
+        const profile = profileSnap.data();
+        if (profile.role !== 'admin' || user.uid !== ADMIN_UID) {
+            await firebaseAuth.signOut();
+            errorDiv.style.color = '#dc2626';
+            errorDiv.textContent = '❌ هذا الحساب ليس المسؤول العام';
+            return;
+        }
+
+        firebaseCurrentUser = user;
+        firebaseProfile = profile;
+        errorDiv.style.color = '#16a34a';
+        errorDiv.textContent = '✅ تم تسجيل الدخول';
+        setTimeout(() => { showMainApp(); initializeDashboard(); }, 500);
+
+    } catch (err) {
+        console.error('Login error:', err);
+        errorDiv.style.color = '#dc2626';
+        const errorMessages = {
+            'auth/invalid-email': '❌ البريد الإلكتروني غير صحيح',
+            'auth/user-not-found': '❌ لا يوجد حساب بهذا البريد',
+            'auth/wrong-password': '❌ كلمة المرور غير صحيحة',
+            'auth/invalid-credential': '❌ البريد أو كلمة المرور غير صحيحة',
+            'auth/too-many-requests': '⚠️ محاولات كثيرة، حاول لاحقاً'
+        };
+        errorDiv.textContent = errorMessages[err.code] || ('❌ ' + (err.message || err.code));
+    }
+});
+
+document.getElementById('loginPassword').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') document.getElementById('loginBtn').click();
+});
+
+// ==================== استعادة الجلسة ====================
+firebaseAuth.onAuthStateChanged(async function(user) {
+    if (!user) { showLogin(); return; }
+    try {
+        const profileSnap = await usersRef.doc(user.uid).get();
+        if (!profileSnap.exists) { await firebaseAuth.signOut(); showLogin(); return; }
+        const profile = profileSnap.data();
+        if (profile.role !== 'admin' || user.uid !== ADMIN_UID) { await firebaseAuth.signOut(); showLogin(); return; }
+        firebaseCurrentUser = user;
+        firebaseProfile = profile;
+        showMainApp();
+        initializeDashboard();
+    } catch (e) { console.error(e); showLogin(); }
+});
+
+setInterval(updateDateTime, 1000);
+
+// ==================== أزرار النظام ====================
+document.getElementById('refreshBtn').addEventListener('click', function() {
+    updateDateTime();
+    const statusEl = document.getElementById('syncStatus');
+    if (statusEl) { statusEl.textContent = '☁️ جاري التحديث...'; statusEl.style.background = '#fef3c7'; statusEl.style.color = '#92400e'; }
+    refreshAllData();
+    setTimeout(() => { if (statusEl) { statusEl.textContent = '☁️ تم التحديث بنجاح ✅'; statusEl.style.background = '#d1fae5'; statusEl.style.color = '#065f46'; } }, 500);
+});
+
+document.getElementById('logoutBtn').addEventListener('click', async function() {
+    if (!confirm('هل تريد تسجيل الخروج؟')) return;
+    await firebaseAuth.signOut();
+    firebaseCurrentUser = null; firebaseProfile = null;
+    showLogin();
+    document.getElementById('loginPassword').value = '';
+    document.getElementById('loginError').textContent = '';
+});
+
+function initializeDashboard() {
+    const statusEl = document.getElementById('syncStatus');
+    if (statusEl) { statusEl.textContent = '☁️ متصل بحساب المسؤول العام'; statusEl.style.background = '#d1fae5'; statusEl.style.color = '#065f46'; }
+    refreshAllData();
+}
+
+async function refreshAllData() {
+    await Promise.all([loadQuickRequests(), loadStatistics()]);
+}
+
+async function loadQuickRequests() {
+    const listEl = document.getElementById('quickRequestsList');
+    try {
+        const snap = await requestsRef.where('status', '==', 'pending').get();
+        if (snap.empty) { listEl.innerHTML = '<div class="empty-message">✅ لا توجد طلبات معلقة حالياً</div>'; return; }
+        listEl.innerHTML = '<p style="text-align:center;color:#4338ca;font-weight:bold;margin-bottom:15px;">📊 إجمالي: ' + snap.size + ' طلب</p>';
+        snap.docs.slice(0, 5).forEach(doc => {
+            const r = doc.data();
+            listEl.innerHTML += '<div class="request-card" style="background:#f8fafc;padding:12px;border-radius:10px;margin-bottom:8px;border-right:4px solid #4338ca;"><div class="request-info"><b>📧 ' + (r.email || '—') + '</b><small>🏫 ' + (r.schoolName || '—') + ' · ' + (r.subject || '—') + '</small></div></div>';
+        });
+    } catch (e) { listEl.innerHTML = '<div class="empty-message" style="background:#fee2e2;color:#991b1b;">⚠️ تعذر التحميل: ' + (e.message || e) + '</div>'; }
+}
+
+async function loadStatistics() {
+    try {
+        const requestsSnap = await requestsRef.where('status', '==', 'pending').get();
+        document.getElementById('totalRequests').textContent = requestsSnap.size;
+        const staffSnap = await usersRef.where('role', '==', 'staff').get();
+        let approvedCount = 0;
+        staffSnap.forEach(doc => { if (doc.data().active === true && doc.data().approved === true) approvedCount++; });
+        document.getElementById('totalStaff').textContent = approvedCount;
+        const schoolsSnap = await schoolsRef.get();
+        document.getElementById('totalSchools').textContent = schoolsSnap.size;
+    } catch (e) { console.error(e); }
+}
+
+// ==================== إدارة الطلبات ====================
+document.getElementById('requestsBtn').addEventListener('click', function() {
+    document.getElementById('requestsModal').style.display = 'flex';
+    loadAllRequests();
+});
+
+async function loadAllRequests() {
+    const listEl = document.getElementById('requestsList');
+    listEl.innerHTML = '<div class="loading">⏳ جارٍ تحميل الطلبات...</div>';
+    try {
+        const snap = await requestsRef.where('status', '==', 'pending').get();
+        if (snap.empty) { listEl.innerHTML = '<div class="empty-message">✅ لا توجد طلبات معلقة حالياً</div>'; return; }
+        
+        const groups = {};
+        snap.docs.forEach(doc => {
+            const r = doc.data();
+            const country = r.country || 'دولة غير محددة';
+            const school = r.schoolName || 'مدرسة غير محددة';
+            if (!groups[country]) groups[country] = {};
+            if (!groups[country][school]) groups[country][school] = [];
+            groups[country][school].push({ doc, data: r });
+        });
+        listEl.innerHTML = '';
+        Object.keys(groups).sort().forEach(country => {
+            const countryBox = document.createElement('div'); countryBox.className = 'country-box';
+            countryBox.innerHTML = '<h3>🌍 ' + country + '</h3>';
+            Object.keys(groups[country]).sort().forEach(school => {
+                const docs = groups[country][school];
+                const schoolBox = document.createElement('div'); schoolBox.className = 'school-box';
+                schoolBox.innerHTML = '<h4>🏫 ' + school + '</h4>';
+                docs.forEach(({ doc, data }) => {
+                    const card = document.createElement('div'); card.className = 'request-card';
+                    const classesList = Array.isArray(data.requestedClassIds) ? data.requestedClassIds.join('، ') : '—';
+                    card.innerHTML = '<div class="request-info"><b>📧 ' + (data.email || '—') + '</b><small>📚 ' + (data.subject || '—') + '</small><small>📖 الشعب: ' + classesList + '</small></div>' +
+                        '<div class="request-actions"><button class="approve-btn">✅ اعتماد</button><button class="reject-btn">❌ رفض</button></div>';
+                    card.querySelector('.approve-btn').onclick = () => approveStaffRequest(doc, data, card);
+                    card.querySelector('.reject-btn').onclick = () => rejectStaffRequest(doc, data, card);
+                    schoolBox.appendChild(card);
+                });
+                countryBox.appendChild(schoolBox);
+            });
+            listEl.appendChild(countryBox);
+        });
+    } catch (e) { listEl.innerHTML = '<div class="empty-message" style="background:#fee2e2;color:#991b1b;">⚠️ تعذر التحميل: ' + (e.message || e) + '</div>'; }
+}
+
+async function approveStaffRequest(doc, data, card) {
+    if (!confirm('اعتماد الموظف: ' + (data.email || '—') + '؟')) return;
+    try {
+        const approvedClasses = Array.isArray(data.requestedClassIds) ? data.requestedClassIds : [];
+        const tenantId = typeof data.schoolId === 'string' ? data.schoolId.trim() : '';
+        if (!tenantId || tenantId === 'main') throw new Error('طلب الموظف لا يحتوي على schoolId صالح.');
+
+        await usersRef.doc(data.uid || doc.id).set({
+            uid: data.uid || doc.id, email: data.email, role: 'staff', subject: data.subject || '',
+            schoolName: data.schoolName || '', schoolId: tenantId, country: data.country || '',
+            classIds: approvedClasses, active: true, approved: true,
+            approvedAt: firebase.firestore.FieldValue.serverTimestamp(), approvedBy: firebaseCurrentUser.uid
+        }, { merge: true });
+
+        await doc.ref.update({ status: 'approved', approvedClassIds: approvedClasses, reviewedAt: firebase.firestore.FieldValue.serverTimestamp(), reviewedBy: firebaseCurrentUser.uid });
+
+        const tenantRef = firestoreDb.collection('schoolData').doc(tenantId);
+        const tenantSnap = await tenantRef.get();
+        if (!tenantSnap.exists) {
+            const initialClasses = {};
+            approvedClasses.forEach(classId => { initialClasses[classId] = { students: [], photos: { photo1: null, photo2: null, photo3: null } }; });
+            await tenantRef.set({ schoolId: tenantId, schoolName: data.schoolName || '', country: data.country || '', allClassesData: initialClasses, createdAt: firebase.firestore.FieldValue.serverTimestamp(), createdBy: firebaseCurrentUser.uid }, { merge: true });
+        }
+        
+        const batch = firestoreDb.batch();
+        approvedClasses.forEach(classId => { batch.set(firestoreDb.collection('schoolClasses').doc(tenantId + '__' + classId), { schoolId: tenantId, classId: classId, classData: { students: [], photos: {} }, updatedAt: firebase.firestore.FieldValue.serverTimestamp(), updatedBy: firebaseCurrentUser.uid }, { merge: true }); });
+        await batch.commit();
+
+        if (card) card.innerHTML = '<div style="color:#15803d;font-weight:bold;padding:10px;">✅ تم الاعتماد</div>';
+        alert('✅ تم الاعتماد بنجاح');
+        loadStatistics(); loadQuickRequests();
+    } catch (e) { alert('❌ تعذر الاعتماد: ' + e.message); }
+}
+
+async function rejectStaffRequest(doc, data, card) {
+    if (!confirm('رفض طلب الموظف؟')) return;
+    try {
+        await doc.ref.update({ status: 'rejected', reviewedAt: firebase.firestore.FieldValue.serverTimestamp(), reviewedBy: firebaseCurrentUser.uid });
+        if (card) card.innerHTML = '<div style="color:#b91c1c;font-weight:bold;padding:10px;">❌ تم الرفض</div>';
+        alert('✅ تم الرفض'); loadStatistics(); loadQuickRequests();
+    } catch (e) { alert('❌ تعذر الرفض: ' + e.message); }
+}
+
+// ==================== إدارة الموظفين ====================
+document.getElementById('staffListBtn').addEventListener('click', function() {
+    document.getElementById('staffListModal').style.display = 'flex';
+    loadAllStaff();
+});
+
+document.getElementById('staffSearchInput').addEventListener('input', function() {
+    const q = this.value.trim().toLowerCase();
+    document.querySelectorAll('#staffListContainer [data-search]').forEach(card => {
+        card.style.display = (card.getAttribute('data-search') || '').includes(q) ? 'block' : 'none';
+    });
+});
+
+async function loadAllStaff() {
+    const container = document.getElementById('staffListContainer');
+    container.innerHTML = '<div class="loading">⏳ جارٍ تحميل الموظفين...</div>';
+    try {
+        const snap = await usersRef.where('role', '==', 'staff').get();
+        if (snap.empty) { container.innerHTML = '<div class="empty-message">لا يوجد موظفون معتمدون حالياً</div>'; return; }
+        container.innerHTML = '';
+        snap.docs.forEach(doc => {
+            const d = doc.data();
+            const email = d.email || doc.id;
+            const classes = Array.isArray(d.classIds) ? d.classIds.join('، ') : '—';
+            const isActive = d.active === true && d.approved === true;
+            const card = document.createElement('div');
+            card.setAttribute('data-search', (email + ' ' + d.schoolName + ' ' + d.subject).toLowerCase());
+            card.style.cssText = 'background:white; border:1px solid #dbeafe; border-radius:14px; padding:14px; margin:10px 0; box-shadow:0 2px 8px rgba(0,0,0,0.05);';
+            card.innerHTML = `<div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px; margin-bottom:10px;">
+                <div style="flex:1; min-width:200px;"><div style="font-weight:bold; color:#1e40af;">📧 ${email}</div>
+                <div style="font-size:13px; color:#475569; margin-top:5px;">🌍 ${d.country || '—'} · 🏫 ${d.schoolName || '—'}</div>
+                <div style="font-size:13px; color:#475569;">📚 ${d.subject || '—'} · 📖 ${classes}</div></div>
+                <div style="display:flex; align-items:center; gap:8px;"><span style="background:${isActive ? '#16a34a' : '#f59e0b'}; color:white; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:bold;">${isActive ? '✅ نشط' : '⏸️ موقوف'}</span></div></div>
+                <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end;">
+                <button class="edit-btn" style="background:#2563eb; color:white; border:none; padding:8px 14px; border-radius:8px; cursor:pointer;">✏️ تعديل</button>
+                <button class="toggle-btn" style="background:${isActive ? '#b45309' : '#16a34a'}; color:white; border:none; padding:8px 14px; border-radius:8px; cursor:pointer;">${isActive ? '⏸️ إيقاف' : '▶️ تفعيل'}</button>
+                <button class="reset-btn" style="background:#0f766e; color:white; border:none; padding:8px 14px; border-radius:8px; cursor:pointer;">🔑 كلمة المرور</button>
+                <button class="delete-btn" style="background:#dc2626; color:white; border:none; padding:8px 14px; border-radius:8px; cursor:pointer;">🗑️ حذف</button></div>`;
+            container.appendChild(card);
+            card.querySelector('.edit-btn').onclick = () => editStaff(doc.id, d);
+            card.querySelector('.toggle-btn').onclick = () => toggleStaffActive(doc.id, d);
+            card.querySelector('.reset-btn').onclick = () => sendPasswordReset(email);
+            card.querySelector('.delete-btn').onclick = () => deleteStaff(doc.id, email);
+        });
+    } catch (e) { container.innerHTML = '<div class="empty-message" style="color:red;">خطأ: ' + e.message + '</div>'; }
+}
+
+async function editStaff(uid, currentData) {
+    const country = prompt('🌍 الدولة:', currentData.country || ''); if (country === null) return;
+    const school = prompt('🏫 اسم المدرسة:', currentData.schoolName || ''); if (school === null) return;
+    const subject = prompt('📚 المادة:', currentData.subject || ''); if (subject === null) return;
+    const classesStr = prompt('📖 الشعب (مفصولة بفاصلة):', (currentData.classIds || []).join(', ')); if (classesStr === null) return;
+    const classIds = classesStr.split(',').map(c => c.trim()).filter(Boolean);
+    try { await usersRef.doc(uid).update({ country, schoolName: school, subject, classIds }); alert('✅ تم التعديل'); loadAllStaff(); } catch (e) { alert(e.message); }
+}
+
+async function toggleStaffActive(uid, currentData) {
+    const isCurrentlyActive = currentData.active === true && currentData.approved === true;
+    if (!confirm('هل تريد ' + (isCurrentlyActive ? 'إيقاف' : 'تفعيل') + ' هذا الحساب؟')) return;
+    try { await usersRef.doc(uid).update({ active: !isCurrentlyActive }); alert('✅ تم'); loadAllStaff(); loadStatistics(); } catch (e) { alert(e.message); }
+}
+
+async function sendPasswordReset(email) {
+    if (!confirm('إرسال رابط إعادة تعيين كلمة المرور إلى ' + email + '؟')) return;
+    try { await firebaseAuth.sendPasswordResetEmail(email); alert('✅ تم إرسال الرابط'); } catch (e) { alert(e.message); }
+}
+
+async function deleteStaff(uid, email) {
+    if (!confirm('⚠️ حذف حساب ' + email + ' نهائياً؟')) return;
+    try { await usersRef.doc(uid).delete(); alert('✅ تم الحذف'); loadAllStaff(); loadStatistics(); } catch (e) { alert(e.message); }
+}
+
+// ==================== الاعتماد اليدوي ====================
+document.getElementById('manualApproveBtn').addEventListener('click', function() {
+    document.getElementById('manualApproveModal').style.display = 'flex';
+    document.getElementById('manualApproveEmail').value = '';
+    document.getElementById('manualApproveMessage').textContent = '';
+});
+
+document.getElementById('manualApproveSubmit').addEventListener('click', async function() {
+    const email = document.getElementById('manualApproveEmail').value.trim().toLowerCase();
+    const msgEl = document.getElementById('manualApproveMessage');
+    if (!email || !isValidEmail(email)) { msgEl.style.color = '#dc2626'; msgEl.textContent = '❌ بريد غير صالح'; return; }
+    msgEl.style.color = '#f59e0b'; msgEl.textContent = '⏳ جارٍ البحث...';
+    try {
+        const snap = await usersRef.where('email', '==', email).get();
+        if (snap.empty) {
+            const reqSnap = await requestsRef.where('email', '==', email).where('status', '==', 'pending').get();
+            if (reqSnap.empty) { msgEl.style.color = '#dc2626'; msgEl.textContent = '❌ لم يتم العثور على حساب أو طلب'; return; }
+            await approveStaffRequest(reqSnap.docs[0], reqSnap.docs[0].data(), null);
+            msgEl.textContent = '✅ تم الاعتماد'; return;
+        }
+        await snap.docs[0].ref.update({ active: true, approved: true });
+        msgEl.style.color = '#16a34a'; msgEl.textContent = '✅ تم التفعيل'; loadStatistics();
+    } catch (e) { msgEl.style.color = '#dc2626'; msgEl.textContent = '❌ ' + e.message; }
+});
+</script><script>
+// ==================== إدارة Live Worksheets ====================
+let currentLwsFields = [];
+let currentLwsImageFile = null;
+let currentLwsImageUrl = null;
+
+// إضافة زر Live Worksheets إلى الواجهة الرئيسية برمجياً
+document.addEventListener('DOMContentLoaded', () => {
+    const buttonsGrid = document.querySelector('.buttons-grid');
+    if (buttonsGrid) {
+        const lwsBtn = document.createElement('button');
+        lwsBtn.className = 'action-btn primary';
+        lwsBtn.style.background = 'linear-gradient(135deg, #8b5cf6, #6d28d9)';
+        lwsBtn.innerHTML = '📝 Live Worksheets';
+        lwsBtn.onclick = openLiveWorksheets;
+        buttonsGrid.appendChild(lwsBtn);
+    }
+});
+
+function openLiveWorksheets() { 
+    document.getElementById('liveWorksheetsModal').style.display = 'flex'; 
+    showLwsList(); 
+}
+
+function closeLiveWorksheets() { 
+    document.getElementById('liveWorksheetsModal').style.display = 'none'; 
+}
+
+function showLwsList() { 
+    document.getElementById('lwsListView').style.display = 'block'; 
+    document.getElementById('lwsEditorView').style.display = 'none'; 
+    loadWorksheetsList(); 
+}
+
+function showCreateWorksheet() {
+    document.getElementById('lwsListView').style.display = 'none';
+    document.getElementById('lwsEditorView').style.display = 'flex';
+    document.getElementById('lwsTitle').value = '';
+    document.getElementById('lwsTemplateSelect').value = '';
+    document.getElementById('lwsUploadArea').style.display = 'block';
+    document.getElementById('lwsWorkspace').style.display = 'none';
+    document.getElementById('lwsFieldsLayer').innerHTML = '';
+    currentLwsFields = []; currentLwsImageFile = null; currentLwsImageUrl = null;
+    document.getElementById('lwsFileInput').value = '';
+}
+
+async function loadWorksheetsList() {
+    const listEl = document.getElementById('lwsList');
+    try {
+        const snap = await firestoreDb.collection('worksheets').orderBy('createdAt', 'desc').get();
+        if (snap.empty) { listEl.innerHTML = '<div class="empty-message">لا توجد أوراق عمل حتى الآن. اضغط "إنشاء ورقة جديدة".</div>'; return; }
+        listEl.innerHTML = '';
+        snap.forEach(doc => {
+            const data = doc.data();
+            const date = data.createdAt ? new Date(data.createdAt.toDate()).toLocaleDateString('ar-EG') : '—';
+            const card = document.createElement('div');
+            card.style.cssText = 'background: white; border: 1px solid #cbd5e1; border-radius: 12px; padding: 15px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;';
+            card.innerHTML = `
+                <div><h3 style="margin: 0; color: #1e293b;">${data.title}</h3><span style="font-size: 12px; color: #64748b;">📅 ${date} | 🖱️ ${data.fields ? data.fields.length : 0} حقول</span></div>
+                <div style="display: flex; gap: 8px;">
+                    <button onclick="copyStudentLink('${doc.id}')" style="background: #0ea5e9; color: white; border: none; padding: 8px 15px; border-radius: 8px; cursor: pointer; font-weight: bold;">🔗 رابط الطالب</button>
+                    <button onclick="deleteWorksheet('${doc.id}')" style="background: #ef4444; color: white; border: none; padding: 8px 15px; border-radius: 8px; cursor: pointer; font-weight: bold;">🗑️ حذف</button>
+                </div>`;
+            listEl.appendChild(card);
+        });
+    } catch (e) { listEl.innerHTML = '<div class="error">تعذر التحميل: ' + e.message + '</div>'; }
+}
+
+function copyStudentLink(docId) {
+    // نأخذ رابط لوحة المدير الحالي ونضيف عليه ?student=true&id=...
+    const baseUrl = window.location.href.split('?')[0];
+    const url = baseUrl + '?student=true&id=' + docId;
+    
+    navigator.clipboard.writeText(url).then(() => {
+        alert('✅ تم نسخ رابط الطالب:\n' + url);
+    });
+}
+async function deleteWorksheet(docId) {
+    if (!confirm('هل أنت متأكد من حذف ورقة العمل؟')) return;
+    try { await firestoreDb.collection('worksheets').doc(docId).delete(); loadWorksheetsList(); } catch (e) { alert(e.message); }
+}
+
+async function handleFileUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { alert('⚠️ الحد الأقصى 5 ميجابايت.'); return; }
+    currentLwsImageFile = file;
+    const uploadArea = document.getElementById('lwsUploadArea');
+    const workspace = document.getElementById('lwsWorkspace');
+    const baseImage = document.getElementById('lwsBaseImage');
+    uploadArea.innerHTML = '<div style="font-size: 30px;">⏳</div><h3>جارٍ المعالجة...</h3>';
+
+    if (file.type === 'application/pdf') {
+        const fileReader = new FileReader();
+        fileReader.onload = async function() {
+            try {
+                const pdf = await pdfjsLib.getDocument(new Uint8Array(this.result)).promise;
+                const page = await pdf.getPage(1);
+                const viewport = page.getViewport({ scale: 2.0 });
+                const canvas = document.createElement('canvas');
+                canvas.height = viewport.height; canvas.width = viewport.width;
+                await page.render({ canvasContext: canvas.getContext('2d'), viewport: viewport }).promise;
+                baseImage.src = canvas.toDataURL('image/jpeg', 0.9);
+                baseImage.onload = () => { uploadArea.style.display = 'none'; workspace.style.display = 'inline-block'; };
+            } catch (e) { alert('خطأ في PDF: ' + e.message); uploadArea.innerHTML = '<h3>❌ حدث خطأ.</h3>'; }
+        };
+        fileReader.readAsArrayBuffer(file);
+        } else {
+        // صورة عادية - يتم تحويلها لصورة حقيقية ليتم رفعها لـ Firebase
+        baseImage.src = URL.createObjectURL(file);
+        baseImage.onload = () => {
+            URL.revokeObjectURL(baseImage.src); // تنظيف الذاكرة
+            uploadArea.style.display = 'none';
+            workspace.style.display = 'inline-block';
+        };
+    }
+}
+
+function addField(type) {
+    if (!currentLwsImageFile) { alert('ارفع الورقة أولاً.'); return; }
+    const field = { id: 'field_' + Date.now(), type: type, x: 20, y: 20, w: 100, h: 30 };
+    currentLwsFields.push(field); renderField(field);
+}
+
+function applySmartTemplate() {
+    const template = document.getElementById('lwsTemplateSelect').value;
+    if (!template || !currentLwsImageFile) return;
+    if (!confirm('سيتم إضافة الحقول حسب القالب. متابعة؟')) return;
+    currentLwsFields = []; document.getElementById('lwsFieldsLayer').innerHTML = '';
+    let fields = [];
+    if (template === 'A') fields = [{ type: 'short_text', x: 25, y: 15, w: 100, h: 30 },{ type: 'short_text', x: 25, y: 22, w: 100, h: 30 },{ type: 'short_text', x: 25, y: 29, w: 100, h: 30 },{ type: 'short_text', x: 25, y: 36, w: 100, h: 30 },{ type: 'long_text', x: 15, y: 55, w: 300, h: 60 },{ type: 'long_text', x: 15, y: 70, w: 300, h: 60 }];
+    else if (template === 'B') fields = [{ type: 'mcq', x: 20, y: 15, w: 200, h: 40 },{ type: 'mcq', x: 20, y: 25, w: 200, h: 40 },{ type: 'mcq', x: 20, y: 35, w: 200, h: 40 },{ type: 'mcq', x: 20, y: 45, w: 200, h: 40 },{ type: 'rearrange', x: 15, y: 60, w: 400, h: 40 },{ type: 'rearrange', x: 15, y: 70, w: 400, h: 40 },{ type: 'correct', x: 15, y: 80, w: 400, h: 40 }];
+    else if (template === 'C') fields = [{ type: 'short_text', x: 20, y: 15, w: 100, h: 30 },{ type: 'short_text', x: 20, y: 22, w: 100, h: 30 },{ type: 'short_text', x: 20, y: 29, w: 100, h: 30 },{ type: 'short_text', x: 20, y: 36, w: 100, h: 30 },{ type: 'short_text', x: 20, y: 43, w: 100, h: 30 },{ type: 'correct', x: 15, y: 60, w: 300, h: 40 },{ type: 'correct', x: 15, y: 70, w: 300, h: 40 }];
+    fields.forEach(f => { f.id = 'field_' + Date.now() + Math.random().toString(36).substr(2, 5); currentLwsFields.push(f); renderField(f); });
+}
+
+function renderField(field) {
+    const el = document.createElement('div'); el.className = 'lws-field'; el.id = field.id;
+    el.style.left = field.x + '%'; el.style.top = field.y + '%'; el.style.width = field.w + 'px'; el.style.height = field.h + 'px';
+    let innerContent = field.type === 'short_text' ? '<span>____</span>' : field.type === 'long_text' ? '<span>نص طويل</span>' : field.type === 'mcq' ? '<span>a ○ b ○</span>' : field.type === 'correct' ? '<span>✏️ تصحيح</span>' : '<span>🔀 ترتيب</span>';
+    el.innerHTML = `<button class="delete-field-btn" onclick="removeField('${field.id}', event)">✕</button>${innerContent}`;
+    makeDraggable(el, field); document.getElementById('lwsFieldsLayer').appendChild(el);
+}
+
+function removeField(id, event) { event.stopPropagation(); currentLwsFields = currentLwsFields.filter(f => f.id !== id); document.getElementById(id).remove(); }
+
+function makeDraggable(elmnt, fieldData) {
+    let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+    elmnt.onmousedown = function(e) {
+        if (e.target.classList.contains('delete-field-btn')) return;
+        e.preventDefault(); pos3 = e.clientX; pos4 = e.clientY;
+        document.onmouseup = function() { document.onmouseup = null; document.onmousemove = null; };
+        document.onmousemove = function(e) {
+            e.preventDefault(); pos1 = pos3 - e.clientX; pos2 = pos4 - e.clientY; pos3 = e.clientX; pos4 = e.clientY;
+            let newTop = elmnt.offsetTop - pos2; let newLeft = elmnt.offsetLeft - pos1;
+            if (newTop < 0) newTop = 0; if (newLeft < 0) newLeft = 0;
+            elmnt.style.top = newTop + "px"; elmnt.style.left = newLeft + "px";
+            fieldData.y = (newTop / elmnt.parentElement.offsetHeight) * 100; fieldData.x = (newLeft / elmnt.parentElement.offsetWidth) * 100;
+        };
+    };
+}
+
+async function saveLiveWorksheet() {
+    const title = document.getElementById('lwsTitle').value.trim();
+    if (!title) return alert('أدخل عنوان الورقة.');
+    if (!currentLwsImageFile) return alert('ارفع صورة الورقة أولاً.');
+    if (currentLwsFields.length === 0) return alert('أضف حقول إجابة.');
+    const btn = document.querySelector('button[onclick="saveLiveWorksheet()"]');
+    btn.disabled = true; btn.textContent = '⏳ جارٍ الرفع...';
+    try {
+        const storageRef = firebase.storage().ref();
+        const fileRef = storageRef.child('worksheets/' + Date.now() + '_' + currentLwsImageFile.name);
+        const uploadTask = await fileRef.put(currentLwsImageFile);
+        currentLwsImageUrl = await uploadTask.ref.getDownloadURL();
+        await firestoreDb.collection('worksheets').add({ title: title, imageUrl: currentLwsImageUrl, fields: currentLwsFields, createdAt: firebase.firestore.FieldValue.serverTimestamp(), createdBy: firebaseCurrentUser.uid, schoolId: firebaseProfile ? (firebaseProfile.schoolId || 'global') : 'global' });
+        alert('✅ تم الحفظ بنجاح!'); showLwsList();
+    } catch (e) { alert('❌ خطأ: ' + e.message); } finally { btn.disabled = false; btn.textContent = '💾 حفظ الورقة'; }
+}
+</script>
+<script>
+// ==================== محرك صفحة الطالب (مدمج) ====================
+// هذا الكود يجعل لوحة المدير تتحول إلى صفحة طالب إذا كان الرابط يحتوي على ?student
+
+setTimeout(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const isStudentMode = urlParams.get('student') === 'true';
+    const worksheetId = urlParams.get('id');
+
+    if (isStudentMode && worksheetId) {
+        // إخفاء لوحة المدير بالكامل
+        document.getElementById('loginScreen').style.display = 'none';
+        document.getElementById('mainApp').style.display = 'none';
+        
+        // إخفاء أي مودالات مفتوحة
+        document.querySelectorAll('.modal').forEach(m => m.style.display = 'none');
+
+        // إنشاء واجهة الطالب
+        const studentUI = document.createElement('div');
+        studentUI.className = 'container';
+        studentUI.style.display = 'block';
+        studentUI.innerHTML = `
+            <div class="header">
+                <h1 id="stTitle" style="color:#4338ca;">⏳ جاري تحميل الورقة...</h1>
+            </div>
+            <div class="section" id="stInfoForm">
+                <h2>بيانات الطالب</h2>
+                <div style="margin-bottom:15px;">
+                    <label style="font-weight:bold; display:block; margin-bottom:5px;">اختر الصف:</label>
+                    <select id="stClass" style="width:100%; padding:12px; border-radius:10px; border:1px solid #ccc; font-size:16px;">
+                        <option value="">-- اختر --</option>
+                        <option value="السادس 1">السادس 1</option>
+                        <option value="السادس 2">السادس 2</option>
+                        <option value="السادس 3">السادس 3</option>
+                        <option value="السادس 4">السادس 4</option>
+                        <option value="السادس 5">السادس 5</option>
+                        <option value="السادس 6">السادس 6</option>
+                        <option value="السادس 7">السادس 7</option>
+                    </select>
+                </div>
+                <div style="margin-bottom:15px;">
+                    <label style="font-weight:bold; display:block; margin-bottom:5px;">اسمك الثنائي:</label>
+                    <input type="text" id="stName" style="width:100%; padding:12px; border-radius:10px; border:1px solid #ccc; font-size:16px;" placeholder="مثال: أحمد محمد">
+                </div>
+                <button class="action-btn primary" onclick="startStudentWorksheet()" style="width:100%; font-size:18px;">🚀 ابدأ الإجابة</button>
+            </div>
+            
+            <div class="section" id="stWorkspace" style="display:none; position:relative; text-align:center; padding:20px; background:#f1f5f9; overflow:auto;">
+                <div style="position:relative; display:inline-block;" id="stImgContainer">
+                    <img id="stImg" crossorigin="anonymous" style="max-width:100%; display:block; border-radius:10px;">
+                    <div id="stFields" style="position:absolute; top:0; left:0; width:100%; height:100%;"></div>
+                </div>
+            </div>
+            <div class="section" id="stSubmitArea" style="display:none; text-align:center;">
+                <button class="action-btn success" onclick="submitStudentAnswers()" style="width:100%; font-size:18px;">✅ إرسال الإجابات</button>
+            </div>
+            
+            <div class="section" id="stSuccess" style="display:none; text-align:center;">
+                <h1 style="font-size:60px; margin:0;">🎉</h1>
+                <h2 style="color:#16a34a;">تم إرسال إجاباتك بنجاح!</h2>
+            </div>
+        `;
+        document.body.appendChild(studentUI);
+
+        // جلب الورقة من قاعدة البيانات
+        firestoreDb.collection('worksheets').doc(worksheetId).get().then(doc => {
+            if(doc.exists) {
+                window.currentStudentWorksheet = doc.data();
+                document.getElementById('stTitle').innerText = window.currentStudentWorksheet.title;
+            } else {
+                document.getElementById('stTitle').innerText = '❌ الورقة غير موجودة';
+            }
+        }).catch(err => {
+            document.getElementById('stTitle').innerText = '❌ خطأ في التحميل';
+            console.error(err);
+        });
+    }
+}, 1000); // انتظار ثانية لضمان تحميل الصفحة
+
+// دوال الطالب
+window.startStudentWorksheet = function() {
+    const cls = document.getElementById('stClass').value;
+    const name = document.getElementById('stName').value.trim();
+    if(!cls || !name) return alert('الرجاء اختيار الصف وكتابة الاسم');
+
+    document.getElementById('stInfoForm').style.display = 'none';
+    document.getElementById('stWorkspace').style.display = 'block';
+    document.getElementById('stSubmitArea').style.display = 'block';
+
+    const img = document.getElementById('stImg');
+    img.src = window.currentStudentWorksheet.imageUrl;
+    
+    img.onload = () => {
+        const fieldsDiv = document.getElementById('stFields');
+        fieldsDiv.innerHTML = '';
+        window.currentStudentWorksheet.fields.forEach(f => {
+            const el = document.createElement('div');
+            el.style.cssText = `position:absolute; background:#fef08a; border:2px dashed #ca8a04; border-radius:5px; display:flex; align-items:center; justify-content:center; left:${f.x}%; top:${f.y}%; width:${f.w}px; height:${f.h}px;`;
+            
+            let inputHtml = '';
+            if(f.type === 'short_text') inputHtml = `<input type="text" id="${f.id}" style="width:100%; height:100%; border:none; background:transparent; text-align:center; font-weight:bold; outline:none;">`;
+            else if(f.type === 'long_text') inputHtml = `<textarea id="${f.id}" style="width:100%; height:100%; border:none; background:transparent; resize:none; outline:none; padding:5px;"></textarea>`;
+            else inputHtml = `<input type="text" id="${f.id}" style="width:100%; height:100%; border:none; background:transparent; text-align:center; font-weight:bold; outline:none;">`;
+            
+            el.innerHTML = inputHtml;
+            fieldsDiv.appendChild(el);
+        });
+    };
+}
+
+window.submitStudentAnswers = function() {
+    const name = document.getElementById('stName').value.trim();
+    const cls = document.getElementById('stClass').value;
+    
+    const answers = {};
+    window.currentStudentWorksheet.fields.forEach(f => {
+        const input = document.getElementById(f.id);
+        if(input) answers[f.id] = input.value;
+    });
+
+    firestoreDb.collection('student_answers').add({
+        worksheetId: new URLSearchParams(window.location.search).get('id'),
+        worksheetTitle: window.currentStudentWorksheet.title,
+        studentName: name,
+        studentClass: cls,
+        answers: answers,
+        submittedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }).then(() => {
+        document.getElementById('stWorkspace').style.display = 'none';
+        document.getElementById('stSubmitArea').style.display = 'none';
+        document.getElementById('stSuccess').style.display = 'block';
+    }).catch(e => alert('خطأ: ' + e.message));
+}
+</script>
+</body>
+</html>
