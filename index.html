@@ -1100,6 +1100,9 @@ async function awardHomeworkPointsToEmployee(answerId, score) {
   const normalized = value => String(value == null ? '' : value).trim().replace(/\s+/g, ' ');
   const className = normalized(answer.studentClass);
   const studentName = normalized(answer.studentName);
+  const worksheetId = normalized(answer.worksheetId);
+  // مفتاح ثابت يمنع احتساب الواجب نفسه أكثر من مرة للطالب، حتى لو أرسل إجابتين بوثيقتين مختلفتين.
+  const awardKey = 'HW:' + worksheetId + ':' + className + ':' + studentName.toLowerCase();
   const amount = Number(score) || 0;
   const profile = firebaseProfile || {};
   const role = String(profile.role || '').toLowerCase();
@@ -1119,7 +1122,7 @@ async function awardHomeworkPointsToEmployee(answerId, score) {
       if (!assigned.includes(className)) throw new Error('هذا الفصل غير مسند إلى حساب المعلم: ' + className);
     }
     const mirrorRef = firestoreDb.collection('schoolClasses').doc(schoolId + '__' + className);
-    await firestoreDb.runTransaction(async transaction => {
+    const wasAwarded = await firestoreDb.runTransaction(async transaction => {
       const mirrorSnap = await transaction.get(mirrorRef);
       if (!mirrorSnap.exists) throw new Error('لم يتم العثور على سجل الفصل في schoolClasses: ' + className);
       const mirror = mirrorSnap.data() || {};
@@ -1129,10 +1132,10 @@ async function awardHomeworkPointsToEmployee(answerId, score) {
       const student = classData.students.find(item => normalized(item.name) === studentName);
       if (!student) throw new Error('لم يتم العثور على الطالب بالاسم والصف في برنامج النقاط: ' + studentName + ' - ' + className);
       const awardedIds = Array.isArray(student.homeworkAwardIds) ? student.homeworkAwardIds : [];
-      if (awardedIds.includes(answerId)) return;
+      if (awardedIds.includes(answerId) || awardedIds.includes(awardKey)) return false;
       student.points = (Number(student.points) || 0) + amount;
       student.homeworkPointsSubtotal = (Number(student.homeworkPointsSubtotal) || 0) + amount;
-      student.homeworkAwardIds = awardedIds.concat(answerId);
+      student.homeworkAwardIds = awardedIds.concat([answerId, awardKey]);
       student.homeworkPointsLabel = 'نقاط الإجابة عن الواجب المنزلي';
       transaction.set(mirrorRef, {
         schoolId: schoolId,
@@ -1142,13 +1145,14 @@ async function awardHomeworkPointsToEmployee(answerId, score) {
         updatedBy: firebaseCurrentUser.uid
       }, {merge:true});
     });
-    return;
+    // نتيجة المعاملة تحدد هل أضيفت النقاط الآن أم سبق احتساب الواجب.
+    return wasAwarded !== false;
   }
 
   const isGlobalAdmin = role === 'admin' && firebaseCurrentUser && firebaseCurrentUser.uid === 'hwPgzTQbdfUJa45G2Wwc79ANNJE2';
   if (!isGlobalAdmin) throw new Error('حسابك لا يملك صلاحية إضافة نقاط الواجبات.');
   const dataRef = firestoreDb.collection('schoolData').doc(isGlobalAdmin ? 'main' : schoolId);
-  await firestoreDb.runTransaction(async transaction => {
+  const wasAwarded = await firestoreDb.runTransaction(async transaction => {
     const dataSnap = await transaction.get(dataRef);
     if (!dataSnap.exists) throw new Error('لم يتم العثور على بيانات برنامج النقاط للمدرسة.');
     const classes = dataSnap.data().allClassesData || {};
@@ -1157,25 +1161,42 @@ async function awardHomeworkPointsToEmployee(answerId, score) {
     const student = classData.students.find(item => normalized(item.name) === studentName);
     if (!student) throw new Error('لم يتم العثور على الطالب بالاسم والصف في برنامج النقاط: ' + studentName + ' - ' + className);
     const awardedIds = Array.isArray(student.homeworkAwardIds) ? student.homeworkAwardIds : [];
-    if (awardedIds.includes(answerId)) return;
+    if (awardedIds.includes(answerId) || awardedIds.includes(awardKey)) return false;
     student.points = (Number(student.points) || 0) + amount;
     student.homeworkPointsSubtotal = (Number(student.homeworkPointsSubtotal) || 0) + amount;
-    student.homeworkAwardIds = awardedIds.concat(answerId);
+    student.homeworkAwardIds = awardedIds.concat([answerId, awardKey]);
     student.homeworkPointsLabel = 'نقاط الإجابة عن الواجب المنزلي';
     transaction.set(dataRef, {allClassesData:classes, updatedAt:firebase.firestore.FieldValue.serverTimestamp(), updatedBy:firebaseCurrentUser.uid}, {merge:true});
+    return true;
   });
+  return wasAwarded !== false;
 }
 
 async function saveAutomaticStudentScore(answerId, correctFields, score, maxScore) {
   try {
-    await firestoreDb.collection('student_answers').doc(answerId).update({
+    const answerRef = firestoreDb.collection('student_answers').doc(answerId);
+    const existingSnap = await answerRef.get();
+    if (!existingSnap.exists) throw new Error('لم يتم العثور على إجابة الطالب.');
+    const existing = existingSnap.data() || {};
+    // الإجابة نفسها سبق اعتمادها: لا نعيد التصحيح أو الإضافة مرة أخرى.
+    if (existing.pointsCredited === true) {
+      alert('ℹ️ سبق احتساب نقاط هذه الإجابة لهذا الطالب. لم تتم إضافة نقاط جديدة.');
+      return;
+    }
+    await answerRef.update({
       correctFields: correctFields, score: score, maxScore: maxScore,
       gradingMode: 'automatic', gradedAt: firebase.firestore.FieldValue.serverTimestamp(),
       gradedBy: firebaseCurrentUser.uid
     });
     try {
-      await awardHomeworkPointsToEmployee(answerId, score);
-      const creditedAnswer = (await firestoreDb.collection('student_answers').doc(answerId).get()).data() || {};
+      const credited = await awardHomeworkPointsToEmployee(answerId, score);
+      if (credited === false) {
+        await answerRef.update({pointsCredited:false, creditStatus:'duplicate', duplicateSubmission:true});
+        alert('⚠️ هذا الطالب حصل بالفعل على نقاط ورقة العمل نفسها. تم حفظ التصحيح، لكن لم تُضف نقاط مرة ثانية.');
+        return;
+      }
+      await answerRef.update({pointsCredited:true, creditStatus:'credited'});
+      const creditedAnswer = (await answerRef.get()).data() || {};
       await firestoreDb.collection('homework_results').doc(answerId).set({
         schoolId: creditedAnswer.schoolId || 'global', worksheetId: creditedAnswer.worksheetId || '',
         worksheetTitle: creditedAnswer.worksheetTitle || '', studentName: creditedAnswer.studentName || '',
@@ -1187,7 +1208,7 @@ async function saveAutomaticStudentScore(answerId, correctFields, score, maxScor
       alert('✅ تم حفظ الدرجة (' + score + '/' + maxScore + ')، لكن تعذرت إضافة النقاط إلى برنامج الموظفين. السبب: ' + awardError.message);
     }
   } catch(e) {
-    alert('❌ تعذر حفظ الدرجة: ' + e.message + '\\nقد تسمح قواعد Firestore الحالية بتعديل إجابات الطلاب للمدير العام فقط.');
+    alert('❌ تعذر حفظ الدرجة: ' + e.message + '\nقد تسمح قواعد Firestore الحالية بتعديل إجابات الطلاب للمدير العام فقط.');
   }
 }
 
