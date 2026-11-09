@@ -864,7 +864,8 @@ window.startStudentWorksheet = function() {
     document.getElementById('stSubmitArea').style.display = 'block';
 
     const img = document.getElementById('stImg');
-    img.src = window.currentStudentWorksheet.imageUrl;
+img.crossOrigin = "anonymous"; // هذا السطر هو السر لحل مشكلة الحظر
+img.src = window.currentStudentWorksheet.imageUrl;
     
     img.onload = () => {
         const fieldsDiv = document.getElementById('stFields');
