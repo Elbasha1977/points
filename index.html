@@ -9,6 +9,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+<script>if (window.pdfjsLib) { pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js"; }</script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; font-family: Tahoma, Arial; }
 body { background: linear-gradient(135deg, #dbeafe, #c7d2fe); padding: 20px; min-height: 100vh; }
@@ -680,7 +681,7 @@ async function deleteWorksheet(docId) {
 async function handleFileUpload(event) {
     const file = event.target.files[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) { alert('⚠️ الحد الأقصى 5 ميجابايت.'); return; }
+    if (file.size > 10 * 1024 * 1024) { alert('⚠️ الحد الأقصى 10 ميجابايت.'); event.target.value = ''; return; }
     currentLwsImageFile = file;
     const uploadArea = document.getElementById('lwsUploadArea');
     const workspace = document.getElementById('lwsWorkspace');
@@ -702,7 +703,7 @@ async function handleFileUpload(event) {
                 const jpegBlob = await new Promise((resolve, reject) => {
                     canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('تعذر تحويل صفحة PDF إلى صورة')), 'image/jpeg', 0.92);
                 });
-                const safeBaseName = file.name.replace(/\\.pdf$/i, '');
+                const safeBaseName = file.name.replace(/\.pdf$/i, '');
                 currentLwsImageFile = new File([jpegBlob], safeBaseName + '_page1.jpg', { type: 'image/jpeg' });
 
                 baseImage.onload = () => {
