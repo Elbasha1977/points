@@ -854,9 +854,20 @@ setTimeout(() => {
                     <label style="font-weight:bold; display:block; margin-bottom:5px;">اختر الصف:</label>
                     <select id="stClass" onchange="populateStudentNames()" style="width:100%; padding:12px; border-radius:10px; border:1px solid #ccc; font-size:16px;">
 <option value="">-- اختر الصف --</option>
+<option value="الخامس 1">الخامس 1</option>
+<option value="الخامس 2">الخامس 2</option>
+<option value="الخامس 3">الخامس 3</option>
+<option value="الخامس 4">الخامس 4</option>
+<option value="الخامس 5">الخامس 5</option>
+<option value="الخامس 6">الخامس 6</option>
+<option value="الخامس 7">الخامس 7</option>
+<option value="السادس 1">السادس 1</option>
 <option value="السادس 2">السادس 2</option>
+<option value="السادس 3">السادس 3</option>
 <option value="السادس 4">السادس 4</option>
+<option value="السادس 5">السادس 5</option>
 <option value="السادس 6">السادس 6</option>
+<option value="السادس 7">السادس 7</option>
 </select>
                 </div>
                 <div style="margin-bottom:15px;">
@@ -864,6 +875,8 @@ setTimeout(() => {
                     <select id="stName" disabled style="width:100%; padding:12px; border-radius:10px; border:1px solid #ccc; font-size:16px;"><option value="">-- اختر الصف أولاً --</option></select>
                 </div>
                 <button id="stStartBtn" class="action-btn primary" onclick="startStudentWorksheet()" style="width:100%; font-size:18px;" disabled>⏳ جاري تحميل الورقة...</button>
+                <button type="button" class="action-btn" onclick="showMyHomeworkResults()" style="width:100%;margin-top:10px;background:#0f766e;color:white">🏅 عرض نتائج نقاط واجباتي</button>
+                <div id="myHomeworkResults" style="display:none;margin-top:14px;padding:12px;border-radius:10px;background:#ecfeff;text-align:right"></div>
             </div>
             
             <div class="section" id="stWorkspace" style="display:none; position:relative; text-align:center; padding:20px; background:#f1f5f9; overflow:auto;">
@@ -962,6 +975,21 @@ window.startStudentWorksheet = function() {
     };
     img.src = window.currentStudentWorksheet.imageUrl;
 }
+
+window.showMyHomeworkResults = async function(){
+ const cls=document.getElementById('stClass').value, name=document.getElementById('stName').value;
+ const box=document.getElementById('myHomeworkResults'); box.style.display='block';
+ if(!cls||!name){box.innerHTML='<b style="color:#b91c1c">اختر الصف واسمك أولاً لعرض نتائجك.</b>';return;}
+ box.innerHTML='⏳ جارٍ تحميل نتائجك...';
+ try{
+  const school=(window.currentStudentWorksheet&&window.currentStudentWorksheet.schoolId)||'global';
+  const snap=await firestoreDb.collection('homework_results').where('schoolId','==',school).where('studentClass','==',cls).where('studentName','==',name).get();
+  if(snap.empty){box.innerHTML='<b>لا توجد نتائج منشورة لك حتى الآن.</b>';return;}
+  const items=snap.docs.map(d=>d.data()).sort((a,b)=>((b.awardedAt&&b.awardedAt.toMillis)?b.awardedAt.toMillis():0)-((a.awardedAt&&a.awardedAt.toMillis)?a.awardedAt.toMillis():0));
+  box.innerHTML='<h3 style="margin-top:0;color:#0f766e">نتائجك المعتمدة</h3>'+items.map(x=>'<div style="padding:9px;margin:7px 0;background:white;border-radius:8px;border:1px solid #99f6e4"><b>'+safeStudentResult(x.worksheetTitle)+'</b><div>الدرجة: <b>'+Number(x.score||0)+' / '+Number(x.maxScore||0)+'</b></div><div style="color:#047857;font-weight:bold">✔ تمت إضافة النقاط إلى رصيدك</div></div>').join('');
+ }catch(e){box.innerHTML='<span style="color:#b91c1c">تعذر تحميل النتائج: '+safeStudentResult(e.message||e)+'</span>';}
+};
+function safeStudentResult(v){return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 
 window.submitStudentAnswers = function() {
     const name = document.getElementById('stName').value;
@@ -1113,7 +1141,14 @@ async function saveAutomaticStudentScore(answerId, correctFields, score, maxScor
     });
     try {
       await awardHomeworkPointsToEmployee(answerId, score);
-      alert('✅ تم حفظ التصحيح وإضافة نقاط الإجابة عن الواجب المنزلي: ' + score + ' نقطة من ' + maxScore + '.');
+      const creditedAnswer = (await firestoreDb.collection('student_answers').doc(answerId).get()).data() || {};
+      await firestoreDb.collection('homework_results').doc(answerId).set({
+        schoolId: creditedAnswer.schoolId || 'global', worksheetId: creditedAnswer.worksheetId || '',
+        worksheetTitle: creditedAnswer.worksheetTitle || '', studentName: creditedAnswer.studentName || '',
+        studentClass: creditedAnswer.studentClass || '', score: Number(score)||0, maxScore: Number(maxScore)||0,
+        awardedAt: firebase.firestore.FieldValue.serverTimestamp(), status: 'credited'
+      }, {merge:true});
+      alert('✅ تم حفظ التصحيح وإضافة النقاط ونشر النتيجة للطالب: ' + score + ' نقطة من ' + maxScore + '.');
     } catch (awardError) {
       alert('✅ تم حفظ الدرجة (' + score + '/' + maxScore + ')، لكن تعذرت إضافة النقاط إلى برنامج الموظفين. السبب: ' + awardError.message);
     }
