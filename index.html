@@ -818,12 +818,12 @@ setTimeout(() => {
                     <label style="font-weight:bold; display:block; margin-bottom:5px;">اسمك الثنائي:</label>
                     <input type="text" id="stName" style="width:100%; padding:12px; border-radius:10px; border:1px solid #ccc; font-size:16px;" placeholder="مثال: أحمد محمد">
                 </div>
-                <button class="action-btn primary" onclick="startStudentWorksheet()" style="width:100%; font-size:18px;">🚀 ابدأ الإجابة</button>
+                <button id="stStartBtn" class="action-btn primary" onclick="startStudentWorksheet()" style="width:100%; font-size:18px;" disabled>⏳ جاري تحميل الورقة...</button>
             </div>
             
             <div class="section" id="stWorkspace" style="display:none; position:relative; text-align:center; padding:20px; background:#f1f5f9; overflow:auto;">
                 <div style="position:relative; display:inline-block;" id="stImgContainer">
-                    <img id="stImg" crossorigin="anonymous" style="max-width:100%; display:block; border-radius:10px;">
+                    <img id="stImg" style="max-width:100%; display:block; border-radius:10px;" alt="صورة ورقة العمل">
                     <div id="stFields" style="position:absolute; top:0; left:0; width:100%; height:100%;"></div>
                 </div>
             </div>
@@ -842,13 +842,18 @@ setTimeout(() => {
         firestoreDb.collection('worksheets').doc(worksheetId).get().then(doc => {
             if(doc.exists) {
                 window.currentStudentWorksheet = doc.data();
-                document.getElementById('stTitle').innerText = window.currentStudentWorksheet.title;
+                document.getElementById('stTitle').innerText = window.currentStudentWorksheet.title || 'ورقة العمل';
+                const startBtn = document.getElementById('stStartBtn');
+                startBtn.disabled = false;
+                startBtn.textContent = '🚀 ابدأ الإجابة';
             } else {
-                document.getElementById('stTitle').innerText = '❌ الورقة غير موجودة';
+                document.getElementById('stTitle').innerText = '❌ الورقة غير موجودة أو تم حذفها';
+                document.getElementById('stStartBtn').textContent = 'الورقة غير متاحة';
             }
         }).catch(err => {
-            document.getElementById('stTitle').innerText = '❌ خطأ في التحميل';
-            console.error(err);
+            document.getElementById('stTitle').innerText = '❌ تعذر تحميل بيانات الورقة. تحقق من صلاحيات Firestore والاتصال.';
+            document.getElementById('stStartBtn').textContent = 'تعذر التحميل';
+            console.error('Worksheet Firestore read error:', err);
         });
     }
 }, 1000); // انتظار ثانية لضمان تحميل الصفحة
@@ -858,15 +863,16 @@ window.startStudentWorksheet = function() {
     const cls = document.getElementById('stClass').value;
     const name = document.getElementById('stName').value.trim();
     if(!cls || !name) return alert('الرجاء اختيار الصف وكتابة الاسم');
+    if(!window.currentStudentWorksheet || !window.currentStudentWorksheet.imageUrl) {
+        return alert('لم يتم تحميل صورة ورقة العمل بعد. يرجى تحديث الصفحة والمحاولة مرة أخرى.');
+    }
 
     document.getElementById('stInfoForm').style.display = 'none';
     document.getElementById('stWorkspace').style.display = 'block';
     document.getElementById('stSubmitArea').style.display = 'block';
 
     const img = document.getElementById('stImg');
-img.crossOrigin = "anonymous"; // هذا السطر هو السر لحل مشكلة الحظر
-img.src = window.currentStudentWorksheet.imageUrl;
-    
+    // تثبيت معالج التحميل قبل تعيين رابط الصورة، وعدم فرض CORS على عرض الصورة.
     img.onload = () => {
         const fieldsDiv = document.getElementById('stFields');
         fieldsDiv.innerHTML = '';
@@ -883,6 +889,14 @@ img.src = window.currentStudentWorksheet.imageUrl;
             fieldsDiv.appendChild(el);
         });
     };
+    img.onerror = () => {
+        document.getElementById('stWorkspace').style.display = 'none';
+        document.getElementById('stSubmitArea').style.display = 'none';
+        document.getElementById('stInfoForm').style.display = 'block';
+        document.getElementById('stTitle').innerText = '❌ تعذر عرض الصورة. تحقق من رابط الصورة وصلاحيات Firebase Storage.';
+        alert('تعذر تحميل صورة الورقة. قد يكون رابط Firebase Storage غير صالح أو لا يسمح بالوصول.');
+    };
+    img.src = window.currentStudentWorksheet.imageUrl;
 }
 
 window.submitStudentAnswers = function() {
