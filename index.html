@@ -1108,27 +1108,72 @@ async function awardHomeworkPointsToEmployee(answerId, score) {
   const answerSnap = await firestoreDb.collection('student_answers').doc(answerId).get();
   if (!answerSnap.exists) throw new Error('لم يتم العثور على سجل الإجابة.');
   const answer = answerSnap.data();
-  const normalized = value => String(value || '').trim().replace(/\s+/g, ' ');
-  const tenantId = firebaseProfile && firebaseProfile.role === 'schoolAdmin' ? firebaseProfile.schoolId : null;
-  if (tenantId && answer.schoolId !== tenantId) throw new Error('إجابة الطالب لا تتبع المدرسة الحالية.');
-  const dataRef = firestoreDb.collection('schoolData').doc(tenantId || 'main');
+  const normalized = value => String(value == null ? '' : value).trim().replace(/\s+/g, ' ');
+  const className = normalized(answer.studentClass);
+  const studentName = normalized(answer.studentName);
+  const amount = Number(score) || 0;
+  const profile = firebaseProfile || {};
+  const role = String(profile.role || '').toLowerCase();
+  const schoolId = String(answer.schoolId || profile.schoolId || '').trim();
+  if (!schoolId) throw new Error('لا يوجد schoolId صالح في إجابة الطالب.');
+  if (profile.schoolId && profile.schoolId !== schoolId && role !== 'admin') {
+    throw new Error('إجابة الطالب لا تتبع المدرسة المرتبطة بحسابك.');
+  }
+
+  // حساب المعلم يحدّث وثيقة الفصل المخصصة له فقط؛ أما مدير المدرسة
+  // والمدير العام فيحدّثان وثيقة بيانات المدرسة/البيانات العامة.
+  const isStaff = role === 'staff';
+  const isSchoolScoped = isStaff || role === 'schoolAdmin';
+  if (isSchoolScoped) {
+    if (isStaff) {
+      const assigned = Array.isArray(profile.classIds) ? profile.classIds.map(normalized) : [];
+      if (!assigned.includes(className)) throw new Error('هذا الفصل غير مسند إلى حساب المعلم: ' + className);
+    }
+    const mirrorRef = firestoreDb.collection('schoolClasses').doc(schoolId + '__' + className);
+    await firestoreDb.runTransaction(async transaction => {
+      const mirrorSnap = await transaction.get(mirrorRef);
+      if (!mirrorSnap.exists) throw new Error('لم يتم العثور على سجل الفصل في schoolClasses: ' + className);
+      const mirror = mirrorSnap.data() || {};
+      if (mirror.schoolId !== schoolId || mirror.classId !== className) throw new Error('بيانات الفصل لا تطابق المدرسة أو اسم الفصل.');
+      const classData = mirror.classData || {};
+      if (!Array.isArray(classData.students)) throw new Error('قائمة طلاب الفصل غير موجودة في سجل الفصل.');
+      const student = classData.students.find(item => normalized(item.name) === studentName);
+      if (!student) throw new Error('لم يتم العثور على الطالب بالاسم والصف في برنامج النقاط: ' + studentName + ' - ' + className);
+      const awardedIds = Array.isArray(student.homeworkAwardIds) ? student.homeworkAwardIds : [];
+      if (awardedIds.includes(answerId)) return;
+      student.points = (Number(student.points) || 0) + amount;
+      student.homeworkPointsSubtotal = (Number(student.homeworkPointsSubtotal) || 0) + amount;
+      student.homeworkAwardIds = awardedIds.concat(answerId);
+      student.homeworkPointsLabel = 'نقاط الإجابة عن الواجب المنزلي';
+      transaction.set(mirrorRef, {
+        schoolId: schoolId,
+        classId: className,
+        classData: classData,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        updatedBy: firebaseCurrentUser.uid
+      }, {merge:true});
+    });
+    return;
+  }
+
+  const isGlobalAdmin = role === 'admin' && firebaseCurrentUser && firebaseCurrentUser.uid === 'hwPgzTQbdfUJa45G2Wwc79ANNJE2';
+  if (!isGlobalAdmin) throw new Error('حسابك لا يملك صلاحية إضافة نقاط الواجبات.');
+  const dataRef = firestoreDb.collection('schoolData').doc(isGlobalAdmin ? 'main' : schoolId);
   await firestoreDb.runTransaction(async transaction => {
     const dataSnap = await transaction.get(dataRef);
     if (!dataSnap.exists) throw new Error('لم يتم العثور على بيانات برنامج النقاط للمدرسة.');
     const classes = dataSnap.data().allClassesData || {};
-    const className = normalized(answer.studentClass);
-    const studentName = normalized(answer.studentName);
     const classData = classes[className];
     if (!classData || !Array.isArray(classData.students)) throw new Error('الصف غير موجود في برنامج النقاط: ' + className);
     const student = classData.students.find(item => normalized(item.name) === studentName);
     if (!student) throw new Error('لم يتم العثور على الطالب بالاسم والصف في برنامج النقاط: ' + studentName + ' - ' + className);
     const awardedIds = Array.isArray(student.homeworkAwardIds) ? student.homeworkAwardIds : [];
     if (awardedIds.includes(answerId)) return;
-    student.points = (Number(student.points) || 0) + (Number(score) || 0);
-    student.homeworkPointsSubtotal = (Number(student.homeworkPointsSubtotal) || 0) + (Number(score) || 0);
+    student.points = (Number(student.points) || 0) + amount;
+    student.homeworkPointsSubtotal = (Number(student.homeworkPointsSubtotal) || 0) + amount;
     student.homeworkAwardIds = awardedIds.concat(answerId);
     student.homeworkPointsLabel = 'نقاط الإجابة عن الواجب المنزلي';
-    transaction.set(dataRef, { allClassesData: classes, updatedAt: firebase.firestore.FieldValue.serverTimestamp(), updatedBy: firebaseCurrentUser.uid }, { merge: true });
+    transaction.set(dataRef, {allClassesData:classes, updatedAt:firebase.firestore.FieldValue.serverTimestamp(), updatedBy:firebaseCurrentUser.uid}, {merge:true});
   });
 }
 
