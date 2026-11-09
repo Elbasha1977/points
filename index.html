@@ -798,12 +798,17 @@ async function saveLiveWorksheet() {
     if (currentLwsFields.length === 0) return alert('أضف حقول إجابة.');
     // إعداد مفتاح الإجابة من المعلم لكل حقل قبل حفظ الورقة
     const answerKey = {};
-    for (const field of currentLwsFields) {
-        const promptLabel = field.type === 'long_text' ? 'الإجابة النموذجية للسؤال النصي الطويل' :
-            field.type === 'rearrange' ? 'الترتيب الصحيح للكلمات' :
-            field.type === 'mcq' ? 'الإجابة الصحيحة للسؤال (اكتب الاختيار/الإجابة)' :
-            'الإجابة الصحيحة لهذا السؤال';
-        const keyValue = prompt(promptLabel + '\\n(معرّف السؤال: ' + field.id + ')\\nاتركه فارغًا إذا لا تريد تصحيحه تلقائيًا:');
+    for (let questionIndex = 0; questionIndex < currentLwsFields.length; questionIndex++) {
+        const field = currentLwsFields[questionIndex];
+        const typeName = field.type === 'long_text' ? 'إجابة نصية طويلة' :
+            field.type === 'short_text' ? 'إجابة قصيرة' :
+            field.type === 'rearrange' ? 'ترتيب كلمات' :
+            field.type === 'mcq' ? 'اختيار من متعدد' :
+            field.type === 'correct' ? 'تصحيح/إكمال' : field.type;
+        const promptLabel = 'السؤال رقم ' + (questionIndex + 1) + ' (' + typeName + ')\\n' +
+            'مكان حقل الإجابة على صورة الورقة: أعلى ' + Math.round(field.y) + '%، جهة اليسار ' + Math.round(field.x) + '%\\n' +
+            'اكتب الإجابة النموذجية لهذا السؤال:';
+        const keyValue = prompt(promptLabel);
         if (keyValue !== null && keyValue.trim() !== '') answerKey[field.id] = keyValue.trim();
     }
     const btn = document.querySelector('button[onclick="saveLiveWorksheet()"]');
@@ -1044,11 +1049,11 @@ async function loadStudentAnswers() {
           <div><h3 style="margin:0;color:#1e3a8a;">${safeAnswerText(a.studentName || 'طالب')}</h3>
           <div>الصف: ${safeAnswerText(a.studentClass || '—')} | الورقة: ${safeAnswerText(a.worksheetTitle || '—')}</div>
           <small>تاريخ الإرسال: ${a.submittedAt && a.submittedAt.toDate ? a.submittedAt.toDate().toLocaleString('ar-QA') : '—'}</small></div>
-          <div style="text-align:center;min-width:130px;"><div style="font-weight:bold;color:#047857;">التصحيح التلقائي</div><div id="score-${doc.id}" style="font-size:28px;font-weight:900;">${correctCount*10} / ${gradedCount*10}</div><small>تم تصحيح ${gradedCount} سؤال من ${Object.keys(answerMap).length}</small></div>
+          <div style="text-align:center;min-width:130px;"><div style="font-weight:bold;color:#047857;">التصحيح التلقائي</div><div id="score-${doc.id}" style="font-size:28px;font-weight:900;">${correctCount*10} / ${Object.keys(answerMap).length*10}</div><small>تمت مراجعة الإجابات النموذجية المتاحة: ${gradedCount} من ${Object.keys(answerMap).length} سؤال</small></div>
         </div>
         <div style="margin-top:12px;">${answerRows}</div>
         <div style="display:flex;justify-content:flex-end;margin-top:12px;">
-          <button class="action-btn success" onclick="saveAutomaticStudentScore('${doc.id}',${JSON.stringify(correctFields).replace(/"/g,'&quot;')},${correctCount*10},${gradedCount*10})">💾 حفظ الدرجة التلقائية</button>
+          <button class="action-btn success" onclick="saveAutomaticStudentScore('${doc.id}',${JSON.stringify(correctFields).replace(/"/g,'&quot;')},${correctCount*10},${Object.keys(answerMap).length*10})">💾 حفظ الدرجة التلقائية</button>
         </div>`;
       list.appendChild(card);
     }
