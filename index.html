@@ -935,14 +935,14 @@ async function homeworkSha256(value) {
     return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2,'0')).join('');
 }
 function homeworkNormalizeName(value) {
-    return String(value || '').trim().replace(/\\s+/g,' ').toLowerCase();
+    return String(value || '').trim().replace(/\s+/g,' ').toLowerCase();
 }
 window.startStudentWorksheet = async function() {
     const cls = document.getElementById('stClass').value;
     const name = document.getElementById('stName').value;
     const pin = (document.getElementById('stPin') && document.getElementById('stPin').value || '').trim();
     if(!cls || !name) return alert('الرجاء اختيار الصف واسم الطالب من القائمة');
-    if(!/^\\d{4}$/.test(pin)) return alert('أدخل الرقم السري المكوّن من 4 أرقام.');
+    if(!/^\d{4}$/.test(pin)) return alert('أدخل الرقم السري المكوّن من 4 أرقام.');
     if(!window.currentStudentWorksheet || !window.currentStudentWorksheet.imageUrl) {
         return alert('لم يتم تحميل صورة ورقة العمل بعد. يرجى تحديث الصفحة والمحاولة مرة أخرى.');
     }
