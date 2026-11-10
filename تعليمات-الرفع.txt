@@ -1,0 +1,5 @@
+ارفع جميع الملفات الموجودة في هذا المجلد مباشرة إلى جذر مستودع GitHub، دون إنشاء أي مجلد للأيقونات.
+يجب أن يكون index.html وmanifest.webmanifest وsw.js وملفات PNG كلها بجانب بعضها في الجذر.
+بعد الرفع افتح رابط GitHub Pages عبر HTTPS وثبّت التطبيق من المتصفح.
+Android: Chrome > تثبيت التطبيق / إضافة إلى الشاشة الرئيسية.
+iPhone: Safari > مشاركة > Add to Home Screen.

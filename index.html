@@ -83,6 +83,16 @@ body { background: linear-gradient(135deg, #dbeafe, #c7d2fe); padding: 20px; min
 .lws-field:hover .delete-field-btn { display: flex; }
 .lws-field input, .lws-field textarea { width: 100%; height: 100%; border: none; background: transparent; text-align: center; font-family: inherit; outline: none; pointer-events: none; }
 </style>
+
+<!-- PWA: Points -->
+<meta name="theme-color" content="#071B3A">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Points">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="./favicon-16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png">
 </head>
 <body>
 
@@ -175,7 +185,7 @@ body { background: linear-gradient(135deg, #dbeafe, #c7d2fe); padding: 20px; min
         <h2>➕ اعتماد موظف يدوياً</h2>
         <div class="manual-approve-box">
             <h3>أدخل بريد الموظف المسجل</h3>
-            <p style="color:#666; font-size:13px; margin-bottom:15px;">سيتم البحث عن حسابه في Firebase وتفعيله إذا كان موجوداً.</p>
+            <p style="color:#666; font-size:13px; margin-bottom:15px;">سيتم البحث عن حسابه  وتفعيله إذا كان موجوداً في قاعدة البيانات.</p>
             <input type="email" id="manualApproveEmail" placeholder="employee@education.qa" dir="ltr">
             <button id="manualApproveSubmit">✅ اعتماد الآن</button>
             <div id="manualApproveMessage" style="margin-top:15px; font-weight:bold;"></div>
@@ -978,7 +988,7 @@ window.startStudentWorksheet = async function() {
         });
         const msg = String((pinError && pinError.message) || '');
         if (msg.includes('permission') || (pinError && pinError.code === 'permission-denied')) {
-            alert('نرجو منكم التكرم بالتأكد من صحة كلمة المرور (الباسورد)، والتأكد كذلك من عدم قيامكم بالإجابة على هذه الورقة من قبل. مع خالص الشكر والتقدير.');
+            alert('تعذر التحقق من الرقم. تأكد أن المدير أنشأ رقمك لهذا الصف والمدرسة، وأن قواعد Firestore المحدّثة منشورة. إذا سبق أن أرسلت هذه الورقة فسيمنعك النظام من إرسالها مرة أخرى.');
         } else {
             alert('تعذر التحقق من الرقم السري. راجع المعلم للتأكد من إنشاء رقمك، ثم حاول مرة أخرى.');
         }
@@ -1290,6 +1300,16 @@ async function saveAutomaticStudentScore(answerId, correctFields, score, maxScor
   }
 }
 
+</script>
+
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('./sw.js').catch(function (error) {
+      console.warn('تعذر تسجيل Service Worker:', error);
+    });
+  });
+}
 </script>
 </body>
 </html>
