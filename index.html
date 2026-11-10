@@ -860,8 +860,12 @@ setTimeout(() => {
 </select>
                 </div>
                 <div style="margin-bottom:15px;">
-                    <label style="font-weight:bold; display:block; margin-bottom:5px;">اسمك الثنائي:</label>
+                    <label style="font-weight:bold; display:block; margin-bottom:5px;">اسمك:</label>
                     <select id="stName" disabled style="width:100%; padding:12px; border-radius:10px; border:1px solid #ccc; font-size:16px;"><option value="">-- اختر الصف أولاً --</option></select>
+                </div>
+                <div style="margin-bottom:15px;">
+                    <label style="font-weight:bold; display:block; margin-bottom:5px;">الرقم السري الخاص بك (4 أرقام):</label>
+                    <input id="stPin" type="password" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" autocomplete="off" placeholder="أدخل الرقم السري المخصص لك" style="width:100%;padding:12px;border-radius:10px;border:1px solid #ccc;font-size:18px;text-align:center;letter-spacing:8px;">
                 </div>
                 <button id="stStartBtn" class="action-btn primary" onclick="startStudentWorksheet()" style="width:100%; font-size:18px;" disabled>⏳ جاري تحميل الورقة...</button>
                 <button type="button" class="action-btn" onclick="showMyHomeworkResults()" style="width:100%;margin-top:10px;background:#0f766e;color:white">🏅 عرض نتائج نقاط واجباتي</button>
@@ -925,14 +929,40 @@ window.populateStudentNames = function() {
   });
 };
 // دوال الطالب
-window.startStudentWorksheet = function() {
+async function homeworkSha256(value) {
+    const bytes = new TextEncoder().encode(String(value));
+    const digest = await crypto.subtle.digest('SHA-256', bytes);
+    return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+function homeworkNormalizeName(value) {
+    return String(value || '').trim().replace(/\\s+/g,' ').toLowerCase();
+}
+window.startStudentWorksheet = async function() {
     const cls = document.getElementById('stClass').value;
     const name = document.getElementById('stName').value;
+    const pin = (document.getElementById('stPin') && document.getElementById('stPin').value || '').trim();
     if(!cls || !name) return alert('الرجاء اختيار الصف واسم الطالب من القائمة');
+    if(!/^\\d{4}$/.test(pin)) return alert('أدخل الرقم السري المكوّن من 4 أرقام.');
     if(!window.currentStudentWorksheet || !window.currentStudentWorksheet.imageUrl) {
         return alert('لم يتم تحميل صورة ورقة العمل بعد. يرجى تحديث الصفحة والمحاولة مرة أخرى.');
     }
 
+    const schoolId = String(window.currentStudentWorksheet.schoolId || 'global');
+    const studentKey = await homeworkSha256(schoolId + '|' + cls + '|' + homeworkNormalizeName(name));
+    const pinHash = await homeworkSha256(studentKey + '|' + pin);
+    // تحقق من الرقم السري داخل Firestore Rules قبل فتح ورقة العمل.
+    try {
+        await firestoreDb.collection('student_pin_checks').add({
+            schoolId: schoolId, studentKey: studentKey, studentName: name,
+            studentClass: cls, studentPinHash: pinHash,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+    } catch(pinError) {
+        console.warn('Student PIN validation failed:', pinError);
+        alert('الرقم السري غير صحيح، أو لم يتم إنشاء رقمك بعد. راجع المعلم للحصول على الرقم الصحيح.');
+        return;
+    }
+    window.currentStudentIdentity = { schoolId, studentKey, pinHash, studentName: name, studentClass: cls };
     document.getElementById('stInfoForm').style.display = 'none';
     document.getElementById('stWorkspace').style.display = 'block';
     document.getElementById('stSubmitArea').style.display = 'block';
@@ -980,32 +1010,58 @@ window.showMyHomeworkResults = async function(){
 };
 function safeStudentResult(v){return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 
-window.submitStudentAnswers = function() {
-    const name = document.getElementById('stName').value;
-    const cls = document.getElementById('stClass').value;
-    
+window.submitStudentAnswers = async function() {
+    const identity = window.currentStudentIdentity;
+    if (!identity || !identity.studentKey || !identity.pinHash) {
+        alert('انتهت جلسة التحقق. ارجع وأدخل الصف والاسم والرقم السري مرة أخرى.');
+        return;
+    }
+    const btn = document.querySelector('#stSubmitArea button');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ جارٍ إرسال الإجابات...'; }
     const answers = {};
     window.currentStudentWorksheet.fields.forEach(f => {
         const input = document.getElementById(f.id);
         if(input) answers[f.id] = input.value;
     });
-
-    firestoreDb.collection('student_answers').add({
-        worksheetId: new URLSearchParams(window.location.search).get('id'),
-        worksheetTitle: window.currentStudentWorksheet.title,
-        studentName: name,
-        studentClass: cls,
-        schoolId: window.currentStudentWorksheet.schoolId || 'global',
-        answers: answers,
-        submittedAt: firebase.firestore.FieldValue.serverTimestamp()
-    }).then(() => {
+    const worksheetId = new URLSearchParams(window.location.search).get('id');
+    // وثيقة ثابتة لكل طالب وورقة عمل: تمنع الإرسال الثاني حتى من جهاز آخر.
+    const answerDocId = identity.studentKey + '_' + worksheetId;
+    const answerRef = firestoreDb.collection('student_answers').doc(answerDocId);
+    const lockRef = firestoreDb.collection('homework_submission_locks').doc(answerDocId);
+    try {
+        const submissionBatch = firestoreDb.batch();
+        submissionBatch.set(lockRef, {
+            studentKey: identity.studentKey, worksheetId: worksheetId,
+            schoolId: identity.schoolId, studentClass: identity.studentClass,
+            studentName: identity.studentName, studentPinHash: identity.pinHash,
+            lockedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        submissionBatch.set(answerRef, {
+            worksheetId: worksheetId,
+            worksheetTitle: window.currentStudentWorksheet.title,
+            studentName: identity.studentName,
+            studentClass: identity.studentClass,
+            schoolId: identity.schoolId,
+            studentKey: identity.studentKey,
+            studentPinHash: identity.pinHash,
+            answers: answers,
+            submittedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        await submissionBatch.commit();
         document.getElementById('stWorkspace').style.display = 'none';
         document.getElementById('stSubmitArea').style.display = 'none';
         document.getElementById('stSuccess').style.display = 'block';
-    }).catch(e => {
+        document.getElementById('stSuccess').insertAdjacentHTML('beforeend','<p style="color:#166534;font-weight:bold">تم تسجيل إجابتك. لا يمكن إعادة إرسال هذه الورقة مرة أخرى.</p>');
+    } catch(e) {
         console.error('Student answers submit error:', e);
-        alert('تعذر إرسال الإجابات: ' + e.message + '\\nتحقق من نشر قواعد Firestore الخاصة بـ student_answers.');
-    });
+        const msg = String(e && (e.code || e.message) || '');
+        if (msg.includes('permission-denied') || msg.includes('PERMISSION_DENIED')) {
+            alert('لم يتم قبول الإرسال. تأكد من صحة الرقم السري، أو ربما سبق لك إرسال هذه الورقة. يسمح بإرسال واحد فقط لكل طالب ولكل ورقة.');
+        } else {
+            alert('تعذر إرسال الإجابات: ' + (e.message || e));
+        }
+        if (btn) { btn.disabled = false; btn.textContent = '✅ إرسال الإجابات'; }
+    }
 }
 
 // ==================== إجابات الطلاب والتصحيح ====================
