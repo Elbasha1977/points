@@ -221,6 +221,16 @@ body { background: linear-gradient(135deg, #dbeafe, #c7d2fe); padding: 20px; min
                 <button class="action-btn success" onclick="saveLiveWorksheet()" style="padding: 10px 20px;">💾 حفظ الورقة</button>
                 <button class="action-btn danger" onclick="showLwsList()" style="padding: 10px 20px;">إلغاء</button>
             </div>
+            <div style="margin:10px 0;padding:14px;border:2px solid #0f766e;border-radius:12px;background:#f0fdfa;text-align:right;">
+              <h3 style="margin:0 0 8px;color:#115e59;">💻 إضافة ورقة عمل بكود HTML جاهز</h3>
+              <p style="margin:4px 0 8px;color:#475569;">الصق كود HTML الكامل. يجب أن يحتوي كل حقل إجابة على name فريد مثل q1 أو data-question-id="q1".</p>
+              <textarea id="lwsCustomHtml" rows="9" placeholder="<!DOCTYPE html> ..." style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #94a3b8;border-radius:8px;direction:ltr;text-align:left;font-family:Consolas,monospace;font-size:13px;"></textarea>
+              <label style="display:block;font-weight:bold;margin:10px 0 5px;">مفتاح الإجابة JSON – مثال: {&quot;q1&quot;:&quot;apple&quot;,&quot;q2&quot;:&quot;book&quot;}</label>
+              <textarea id="lwsCustomAnswerKey" rows="3" placeholder='{"q1":"apple","q2":"book","essay1":{"manual":true}}' style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #94a3b8;border-radius:8px;direction:ltr;text-align:left;font-family:Consolas,monospace;"></textarea>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;"><button class="action-btn primary" onclick="previewCustomHtmlWorksheet()">👁️ معاينة الورقة</button><button class="action-btn" onclick="clearCustomHtmlWorksheet()">مسح الكود</button></div>
+              <div id="lwsCustomHtmlPreview" style="display:none;margin-top:12px;background:#fff;border:1px solid #cbd5e1;border-radius:8px;overflow:hidden;"></div>
+              <small style="display:block;margin-top:8px;color:#64748b;">استخدم {"essay1":{"manual":true}} للأسئلة التي تريد تصحيحها يدوياً. تُعرض الورقة داخل إطار معزول.</small>
+            </div>
             <div style="display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap;">
                 <span style="font-weight: bold; padding: 5px;">إضافة حقل:</span>
                 <button class="lws-tool-btn" onclick="addField('short_text')">📝 نص قصير</button>
@@ -228,18 +238,30 @@ body { background: linear-gradient(135deg, #dbeafe, #c7d2fe); padding: 20px; min
                 <button class="lws-tool-btn" onclick="addField('mcq')">🔘 اختيار من متعدد</button>
                 <button class="lws-tool-btn" onclick="addField('correct')">✏️ تصحيح خطأ</button>
                 <button class="lws-tool-btn" onclick="addField('rearrange')">🔀 ترتيب كلمات</button>
+                <button class="lws-tool-btn" onclick="addField('essay')">✍️ موضوع تعبير (7 جمل)</button>
+                <button class="lws-tool-btn" onclick="addField('matching')">🔗 سؤال توصيل</button>
+                <button class="lws-tool-btn" onclick="addField('drag_fill')">🧩 سحب الكلمات للفراغات</button>
+                <button class="lws-tool-btn" onclick="addField('reading')">📖 قطعة قراءة وأسئلة</button>
+                <button class="lws-tool-btn" style="background:#0f766e;color:white" onclick="document.getElementById('lwsFileInput').click()">📷 رفع صورة لاستخراج النص</button>
             </div>
             <div style="flex: 1; overflow: auto; border: 2px dashed #ccc; border-radius: 10px; position: relative; background: #f1f5f9; text-align: center; padding: 20px;" id="lwsCanvasContainer">
                 <input type="file" id="lwsFileInput" accept="image/*,application/pdf" style="display: none;" onchange="handleFileUpload(event)">
                 <div id="lwsUploadArea" onclick="document.getElementById('lwsFileInput').click()" style="cursor: pointer; padding: 50px;">
                     <div style="font-size: 50px;">📄</div>
                     <h3 style="color: #475569; margin-top: 10px;">انقر هنا لرفع ورقة العمل (صورة أو PDF)</h3>
-                    <p style="color: #94a3b8;">سيتم تحويلها إلى صورة تفاعلية</p>
+                    <p style="color: #94a3b8;">يمكن استخراج النص منها وتحويله إلى أسئلة HTML مستقلة</p>
                 </div>
                 <div id="lwsWorkspace" style="display: none; position: relative; display: inline-block;">
                     <img id="lwsBaseImage" style="max-width: 100%; display: block; user-select: none;">
                     <div id="lwsFieldsLayer" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></div>
                 </div>
+            </div>
+            <div id="lwsOcrPanel" style="display:none;margin-top:12px;padding:14px;background:#ecfeff;border:1px solid #67e8f9;border-radius:12px;text-align:right;">
+                <h3 style="margin:0 0 8px;color:#155e75">🧠 تحويل الصورة إلى ورقة HTML تفاعلية</h3>
+                <p style="margin:4px 0 10px;color:#475569">راجع النص المستخرج وصحح أخطاء OCR، ثم أنشئ الأسئلة. لن تظهر الصورة للطالب في هذه النسخة.</p>
+                <textarea id="lwsOcrText" rows="8" placeholder="سيظهر النص المستخرج هنا..." style="width:100%;padding:10px;border:1px solid #94a3b8;border-radius:8px;direction:auto"></textarea>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button class="action-btn primary" onclick="buildHtmlQuestionsFromOcr()">إنشاء أسئلة تفاعلية من النص</button><button class="action-btn" onclick="runWorksheetOCR()">إعادة استخراج النص</button></div>
+                <small id="lwsOcrStatus" style="display:block;margin-top:8px;color:#0e7490"></small>
             </div>
         </div>
     </div>
@@ -660,7 +682,8 @@ function showCreateWorksheet() {
     document.getElementById('lwsUploadArea').style.display = 'block';
     document.getElementById('lwsWorkspace').style.display = 'none';
     document.getElementById('lwsFieldsLayer').innerHTML = '';
-    currentLwsFields = []; currentLwsImageFile = null; currentLwsImageUrl = null;
+    currentLwsFields = []; currentLwsImageFile = null; currentLwsImageUrl = null; window.lwsHtmlMode = false;
+    document.getElementById('lwsOcrPanel').style.display='none';
     document.getElementById('lwsFileInput').value = '';
 }
 
@@ -733,12 +756,14 @@ async function handleFileUpload(event) {
                     workspace.style.display = 'inline-block';
                 };
                 baseImage.src = URL.createObjectURL(jpegBlob);
+                window.lwsHtmlMode = true; setTimeout(runWorksheetOCR, 250);
             } catch (e) { alert('خطأ في PDF: ' + e.message); uploadArea.innerHTML = '<h3>❌ حدث خطأ.</h3>'; }
         };
         fileReader.readAsArrayBuffer(file);
         } else {
         // صورة عادية - يتم تحويلها لصورة حقيقية ليتم رفعها لـ Firebase
         baseImage.src = URL.createObjectURL(file);
+        window.lwsHtmlMode = true; setTimeout(runWorksheetOCR, 250);
         baseImage.onload = () => {
             URL.revokeObjectURL(baseImage.src); // تنظيف الذاكرة
             uploadArea.style.display = 'none';
@@ -747,9 +772,80 @@ async function handleFileUpload(event) {
     }
 }
 
+// OCR: استخراج النص من الصورة أو الصفحة الأولى من PDF ثم إنشاء ورقة HTML مستقلة.
+window.lwsHtmlMode = false;
+async function loadTesseractLibrary(){
+    if(window.Tesseract) return window.Tesseract;
+    await new Promise((resolve,reject)=>{const sc=document.createElement('script');sc.src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';sc.onload=resolve;sc.onerror=()=>reject(new Error('تعذر تحميل مكتبة OCR. تحقق من الاتصال بالإنترنت.'));document.head.appendChild(sc);});
+    return window.Tesseract;
+}
+async function runWorksheetOCR(){
+    const file=currentLwsImageFile;
+    if(!file){alert('ارفع صورة أو PDF أولاً.');return;}
+    const status=document.getElementById('lwsOcrStatus');
+    status.textContent='⏳ جارٍ تحميل محرك التعرف الضوئي...';
+    try{
+        const T=await loadTesseractLibrary();
+        let source=file;
+        if(file.type==='application/pdf'){
+            const buf=await file.arrayBuffer(); const pdf=await pdfjsLib.getDocument(new Uint8Array(buf)).promise;
+            const page=await pdf.getPage(1); const vp=page.getViewport({scale:2.2});
+            const c=document.createElement('canvas');c.width=vp.width;c.height=vp.height;
+            await page.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;
+            source=c;
+        }
+        const result=await T.recognize(source,'eng+ara',{logger:m=>{if(m.status==='recognizing text')status.textContent='⏳ جارٍ استخراج النص: '+Math.round((m.progress||0)*100)+'%';}});
+        document.getElementById('lwsOcrText').value=(result.data.text||'').trim();
+        document.getElementById('lwsOcrPanel').style.display='block';
+        window.lwsHtmlMode=true;
+        status.textContent='✅ اكتمل استخراج النص. راجعه وصحح الأخطاء قبل إنشاء الأسئلة.';
+        document.getElementById('lwsUploadArea').style.display='none';
+        document.getElementById('lwsWorkspace').style.display='none';
+    }catch(e){status.textContent='❌ '+e.message;alert('تعذر استخراج النص: '+e.message);}
+}
+function buildHtmlQuestionsFromOcr(){
+    const raw=document.getElementById('lwsOcrText').value.trim();
+    if(!raw){alert('لا يوجد نص لإنشاء الأسئلة.');return;}
+    const lines=raw.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+    if(!lines.length)return;
+    currentLwsFields=[]; document.getElementById('lwsFieldsLayer').innerHTML='';
+    window.lwsHtmlMode=true;
+    lines.forEach((line,i)=>{
+        const f={id:'field_'+Date.now()+'_'+i,type:'short_text',prompt:line,manualGrading:true,x:0,y:0,w:0,h:0,htmlQuestion:true};
+        currentLwsFields.push(f);
+    });
+    alert('تم إنشاء '+lines.length+' سؤالاً. راجع الأسئلة ومفتاح الإجابة عند الحفظ.');
+    document.getElementById('lwsOcrStatus').textContent='تم إنشاء '+lines.length+' سؤالاً بصيغة HTML مستقلة.';
+}
+
 function addField(type) {
-    if (!currentLwsImageFile) { alert('ارفع الورقة أولاً.'); return; }
-    const field = { id: 'field_' + Date.now(), type: type, x: 20, y: 20, w: 100, h: 30 };
+    if (!currentLwsImageFile && !window.lwsHtmlMode) { alert('ارفع صورة أو أنشئ ورقة HTML من النص المستخرج أولاً.'); return; }
+    const field = { id: 'field_' + Date.now() + Math.random().toString(36).slice(2,6), type, x: 5, y: 5, w: 260, h: 70 };
+    if (type === 'essay') {
+        field.prompt = prompt('اكتب تعليمات موضوع التعبير:', 'Write a paragraph about your favourite hobby. Write seven sentences.');
+        if (field.prompt === null) return;
+        field.w = 520; field.h = 230; field.maxSentences = 7; field.manualGrading = true;
+    } else if (type === 'matching') {
+        const left = prompt('اكتب عناصر العمود الأول مفصولة بعلامة |:', 'cat|dog|bird');
+        if (left === null) return;
+        field.items = left.split('|').map(x=>x.trim()).filter(Boolean);
+        const right = prompt('اكتب عناصر العمود الثاني مفصولة بعلامة |:', 'قطة|كلب|طائر');
+        if (right === null) return;
+        field.options = right.split('|').map(x=>x.trim()).filter(Boolean);
+        field.w = 520; field.h = Math.max(150, field.items.length * 48);
+    } else if (type === 'drag_fill') {
+        field.prompt = prompt('اكتب الجملة وضع ____ مكان كل فراغ:', 'I ____ to school every day.');
+        if (field.prompt === null) return;
+        field.words = (prompt('اكتب الكلمات مفصولة بفاصلة:', 'go, goes, going') || '').split(',').map(x=>x.trim()).filter(Boolean);
+        field.w = 520; field.h = 150;
+    } else if (type === 'reading') {
+        field.passage = prompt('الصق قطعة القراءة هنا:', 'Ali is a student. He likes reading books.');
+        if (field.passage === null) return;
+        const qs = prompt('اكتب أسئلة القطعة، سؤالاً في كل سطر:', 'Where does Ali study?\\nWhat does Ali like?');
+        if (qs === null) return;
+        field.questions = qs.split(/\\n/).map(x=>x.trim()).filter(Boolean);
+        field.w = 520; field.h = Math.max(220, 70 + field.questions.length * 48); field.manualGrading = true;
+    }
     currentLwsFields.push(field); renderField(field);
 }
 
@@ -768,7 +864,8 @@ function applySmartTemplate() {
 function renderField(field) {
     const el = document.createElement('div'); el.className = 'lws-field'; el.id = field.id;
     el.style.left = field.x + '%'; el.style.top = field.y + '%'; el.style.width = field.w + 'px'; el.style.height = field.h + 'px';
-    let innerContent = field.type === 'short_text' ? '<span>____</span>' : field.type === 'long_text' ? '<span>نص طويل</span>' : field.type === 'mcq' ? '<span>a ○ b ○</span>' : field.type === 'correct' ? '<span>✏️ تصحيح</span>' : '<span>🔀 ترتيب</span>';
+    const labels = {short_text:'إجابة قصيرة',long_text:'نص طويل',mcq:'اختيار من متعدد',correct:'تصحيح',rearrange:'ترتيب كلمات',essay:'موضوع تعبير - 7 جمل',matching:'توصيل',drag_fill:'سحب الكلمات للفراغات',reading:'قطعة قراءة وأسئلة'};
+    let innerContent = `<span style="font-weight:bold;text-align:center;padding:8px;">${field.htmlQuestion ? 'سؤال HTML: '+safeStudentResult(field.prompt) : (labels[field.type] || 'سؤال')}</span>`;
     el.innerHTML = `<button class="delete-field-btn" onclick="removeField('${field.id}', event)">✕</button>${innerContent}`;
     makeDraggable(el, field); document.getElementById('lwsFieldsLayer').appendChild(el);
 }
@@ -791,34 +888,51 @@ function makeDraggable(elmnt, fieldData) {
     };
 }
 
+window.previewCustomHtmlWorksheet=function(){
+ const html=document.getElementById('lwsCustomHtml').value||''; if(!html.trim()) return alert('الصق كود HTML أولاً.');
+ const box=document.getElementById('lwsCustomHtmlPreview'); box.innerHTML=''; box.style.display='block';
+ const frame=document.createElement('iframe'); frame.setAttribute('sandbox','allow-scripts'); frame.style.cssText='width:100%;height:480px;border:0;background:white;'; box.appendChild(frame); frame.srcdoc=html;
+ window.lwsCustomHtmlMode=true; window.lwsHtmlMode=true; currentLwsFields=[{id:'html_custom',type:'html_custom',htmlQuestion:true,prompt:'ورقة HTML'}];
+};
+window.clearCustomHtmlWorksheet=function(){ ['lwsCustomHtml','lwsCustomAnswerKey'].forEach(id=>document.getElementById(id).value=''); document.getElementById('lwsCustomHtmlPreview').innerHTML=''; document.getElementById('lwsCustomHtmlPreview').style.display='none'; window.lwsCustomHtmlMode=false; window.lwsHtmlMode=false; currentLwsFields=[]; };
+function parseCustomHtmlAnswerKey(){
+ let obj; try{obj=JSON.parse(document.getElementById('lwsCustomAnswerKey').value||'{}');}catch(e){throw new Error('مفتاح الإجابة JSON غير صحيح: '+e.message);}
+ if(!obj||Array.isArray(obj)||typeof obj!=='object') throw new Error('مفتاح الإجابة يجب أن يكون كائن JSON.'); return obj;
+}
 async function saveLiveWorksheet() {
     const title = document.getElementById('lwsTitle').value.trim();
     if (!title) return alert('أدخل عنوان الورقة.');
-    if (!currentLwsImageFile) return alert('ارفع صورة الورقة أولاً.');
-    if (currentLwsFields.length === 0) return alert('أضف حقول إجابة.');
-    // إعداد مفتاح الإجابة من المعلم لكل حقل قبل حفظ الورقة
-    const answerKey = {};
-    for (let questionIndex = 0; questionIndex < currentLwsFields.length; questionIndex++) {
+    const customHtml=(document.getElementById('lwsCustomHtml')||{}).value||'';
+    const isCustomHtml=!!customHtml.trim();
+    if (!isCustomHtml && !currentLwsImageFile && !window.lwsHtmlMode) return alert('ارفع صورة الورقة أو أضف ورقة HTML.');
+    if (!isCustomHtml && currentLwsFields.length === 0) return alert('أضف حقول إجابة.');
+    let answerKey={};
+    if(isCustomHtml){if(customHtml.length>700000)return alert('حجم كود HTML كبير جداً. اختصر الكود إلى أقل من 700 كيلوبايت.');try{answerKey=parseCustomHtmlAnswerKey();}catch(e){return alert(e.message);}}
+    // إعداد مفتاح الإجابة من المعلم لكل حقل في الأنماط التقليدية
+    for (let questionIndex = 0; !isCustomHtml && questionIndex < currentLwsFields.length; questionIndex++) {
         const field = currentLwsFields[questionIndex];
         const typeName = field.type === 'long_text' ? 'إجابة نصية طويلة' :
             field.type === 'short_text' ? 'إجابة قصيرة' :
             field.type === 'rearrange' ? 'ترتيب كلمات' :
             field.type === 'mcq' ? 'اختيار من متعدد' :
             field.type === 'correct' ? 'تصحيح/إكمال' : field.type;
-        const promptLabel = 'السؤال رقم ' + (questionIndex + 1) + ' (' + typeName + ')\\n' +
-            'مكان حقل الإجابة على صورة الورقة: أعلى ' + Math.round(field.y) + '%، جهة اليسار ' + Math.round(field.x) + '%\\n' +
-            'اكتب الإجابة النموذجية لهذا السؤال:';
+        if (field.type === 'essay' || field.type === 'reading' || field.manualGrading || field.htmlQuestion) continue;
+        let promptLabel = 'السؤال رقم ' + (questionIndex + 1) + ' (' + typeName + ')\\nاكتب الإجابة النموذجية:';
+        if (field.type === 'matching') promptLabel += '\\nاكتب الإجابات الصحيحة مفصولة بعلامة | وبنفس ترتيب العناصر:';
+        if (field.type === 'drag_fill') promptLabel += '\\nاكتب الكلمات الصحيحة بالترتيب مفصولة بفاصلة:';
         const keyValue = prompt(promptLabel);
         if (keyValue !== null && keyValue.trim() !== '') answerKey[field.id] = keyValue.trim();
     }
     const btn = document.querySelector('button[onclick="saveLiveWorksheet()"]');
     btn.disabled = true; btn.textContent = '⏳ جارٍ الرفع...';
     try {
-        const storageRef = firebase.storage().ref();
-        const fileRef = storageRef.child('worksheets/' + Date.now() + '_' + currentLwsImageFile.name);
-        const uploadTask = await fileRef.put(currentLwsImageFile);
-        currentLwsImageUrl = await uploadTask.ref.getDownloadURL();
-        await firestoreDb.collection('worksheets').add({ title: title, imageUrl: currentLwsImageUrl, fields: currentLwsFields, answerKey: answerKey, createdAt: firebase.firestore.FieldValue.serverTimestamp(), createdBy: firebaseCurrentUser.uid, schoolId: firebaseProfile ? (firebaseProfile.schoolId || 'global') : 'global' });
+        if (currentLwsImageFile && !window.lwsHtmlMode) {
+            const storageRef = firebase.storage().ref();
+            const fileRef = storageRef.child('worksheets/' + Date.now() + '_' + currentLwsImageFile.name);
+            const uploadTask = await fileRef.put(currentLwsImageFile);
+            currentLwsImageUrl = await uploadTask.ref.getDownloadURL();
+        }
+        await firestoreDb.collection('worksheets').add({ title:title, imageUrl:(window.lwsHtmlMode||isCustomHtml)?'':currentLwsImageUrl, worksheetMode:isCustomHtml?'custom_html':(window.lwsHtmlMode?'interactive_html':'image_overlay'), htmlContent:isCustomHtml?customHtml:'', fields:isCustomHtml?[]:currentLwsFields, answerKey:answerKey, createdAt:firebase.firestore.FieldValue.serverTimestamp(), createdBy:firebaseCurrentUser.uid, schoolId:firebaseProfile?(firebaseProfile.schoolId||'global'):'global' });
         alert('✅ تم الحفظ بنجاح!'); showLwsList();
     } catch (e) { alert('❌ خطأ: ' + e.message); } finally { btn.disabled = false; btn.textContent = '💾 حفظ الورقة'; }
 }
@@ -882,6 +996,7 @@ setTimeout(() => {
                 <button class="action-btn success" onclick="submitStudentAnswers()" style="width:100%; font-size:18px;">✅ إرسال الإجابات</button>
             </div>
             
+            <div id="studentTeacherSignature" style="text-align:center;padding:18px;margin:15px auto 25px;color:#4338ca;font-size:18px;font-weight:900;background:#fff;border-radius:16px;box-shadow:0 3px 12px rgba(0,0,0,.08);">مع تحياتي،<br>معلم اللغة الإنجليزية<br>عبدالباسط عطية</div>
             <div class="section" id="stSuccess" style="display:none; text-align:center;">
                 <h1 style="font-size:60px; margin:0;">🎉</h1>
                 <h2 style="color:#16a34a;">تم إرسال إجاباتك بنجاح!</h2>
@@ -937,14 +1052,53 @@ async function homeworkSha256(value) {
 function homeworkNormalizeName(value) {
     return String(value || '').trim().replace(/\s+/g,' ').toLowerCase();
 }
+function buildStudentHtmlSrcdoc(source,token){
+ const safeToken=JSON.stringify(token);
+ const bridge=`<script>
+(function(){
+ var t=${safeToken};
+ function collect(){
+   var a={};
+   document.querySelectorAll('input[name],textarea[name],select[name],input[data-question-id],textarea[data-question-id],select[data-question-id],[contenteditable="true"][data-question-id]').forEach(function(el){
+     var id=el.getAttribute('data-question-id')||el.name;
+     if(!id||el.disabled)return;
+     var v;
+     if(el.type==='radio'){if(!el.checked)return;v=el.value;}
+     else if(el.type==='checkbox'){if(!a[id])a[id]=[];if(el.checked)a[id].push(el.value||'on');return;}
+     else if(el.isContentEditable){v=el.innerText;}
+     else v=el.value;
+     if(a[id]===undefined)a[id]=v;else if(Array.isArray(a[id]))a[id].push(v);else a[id]=[a[id],v];
+   });
+   parent.postMessage({type:'homework_answers',token:t,answers:a},'*');
+ }
+ window.addEventListener('message',function(e){
+   if(!e.data||e.data.type!=='collect_homework_answers'||e.data.token!==t)return;
+   collect();
+ });
+ function reportHeight(){
+   var h=Math.max(document.documentElement.scrollHeight,document.body?document.body.scrollHeight:0,500);
+   parent.postMessage({type:'homework_frame_height',token:t,height:Math.min(h,5000)},'*');
+ }
+ document.addEventListener('submit',function(e){e.preventDefault();},true);
+ window.addEventListener('load',function(){setTimeout(reportHeight,100);setTimeout(reportHeight,700);});
+ if(window.ResizeObserver){new ResizeObserver(reportHeight).observe(document.documentElement);}
+ setTimeout(reportHeight,300);
+})();
+<\/script>`;
+ let html=String(source||'').trim();
+ if(!html) return '<!doctype html><html><body style="font-family:Arial;padding:20px;color:#b91c1c">لم يتم حفظ محتوى ورقة HTML. ارجع إلى لوحة المدير وأعد لصق الكود ثم احفظ الورقة.</body></html>';
+ if(!/<html[\s>]/i.test(html)) html='<!doctype html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head><body>'+html+'</body></html>';
+ if(/<\/body\s*>/i.test(html)) return html.replace(/<\/body\s*>/i,bridge+'</body>');
+ return html+bridge;
+}
 window.startStudentWorksheet = async function() {
     const cls = document.getElementById('stClass').value;
     const name = document.getElementById('stName').value;
     const pin = (document.getElementById('stPin') && document.getElementById('stPin').value || '').trim();
     if(!cls || !name) return alert('الرجاء اختيار الصف واسم الطالب من القائمة');
     if(!/^\d{4}$/.test(pin)) return alert('أدخل الرقم السري المكوّن من 4 أرقام.');
-    if(!window.currentStudentWorksheet || !window.currentStudentWorksheet.imageUrl) {
-        return alert('لم يتم تحميل صورة ورقة العمل بعد. يرجى تحديث الصفحة والمحاولة مرة أخرى.');
+    if(!window.currentStudentWorksheet || (!window.currentStudentWorksheet.imageUrl && !['custom_html','interactive_html'].includes(window.currentStudentWorksheet.worksheetMode))) {
+        return alert('لم يتم تحميل بيانات ورقة العمل. يرجى تحديث الصفحة والمحاولة مرة أخرى.');
     }
 
     const schoolId = String(window.currentStudentWorksheet.schoolId || 'global');
@@ -990,19 +1144,56 @@ window.startStudentWorksheet = async function() {
     document.getElementById('stSubmitArea').style.display = 'block';
 
     const img = document.getElementById('stImg');
-    // تثبيت معالج التحميل قبل تعيين رابط الصورة، وعدم فرض CORS على عرض الصورة.
+    const isCustomHtmlWorksheet=window.currentStudentWorksheet.worksheetMode==='custom_html';
+    const isHtmlWorksheet = window.currentStudentWorksheet.worksheetMode === 'interactive_html';
+    const imgContainer = document.getElementById('stImgContainer');
+    const fieldsDiv = document.getElementById('stFields');
+    if(isCustomHtmlWorksheet){
+      imgContainer.style.display='none'; fieldsDiv.style.position='static'; fieldsDiv.style.width='100%'; fieldsDiv.style.height='auto'; fieldsDiv.style.display='block'; fieldsDiv.innerHTML='';
+      const frame=document.createElement('iframe'); frame.id='studentCustomHtmlFrame'; frame.setAttribute('sandbox','allow-scripts allow-forms allow-modals'); frame.setAttribute('title','ورقة العمل التفاعلية'); frame.style.cssText='display:block;width:100%;min-height:700px;height:700px;border:0;border-radius:12px;background:#fff;'; fieldsDiv.appendChild(frame);
+      window.studentHtmlFrame=frame; window.studentHtmlBridgeToken='hw_'+Date.now()+'_'+Math.random().toString(36).slice(2); window.studentCustomHtmlAnswers=null;
+      if(window.studentHtmlMessageHandler)window.removeEventListener('message',window.studentHtmlMessageHandler);
+      window.studentHtmlMessageHandler=function(e){
+        if(e.source!==frame.contentWindow||!e.data||e.data.token!==window.studentHtmlBridgeToken)return;
+        if(e.data.type==='homework_answers')window.studentCustomHtmlAnswers=e.data.answers||{};
+        if(e.data.type==='homework_frame_height'&&Number(e.data.height)>0)frame.style.height=Math.max(700,Math.min(Number(e.data.height)+30,5000))+'px';
+      }; window.addEventListener('message',window.studentHtmlMessageHandler);
+      const htmlSource=window.currentStudentWorksheet.htmlContent||'';
+      frame.srcdoc=buildStudentHtmlSrcdoc(htmlSource,window.studentHtmlBridgeToken); return;
+    }
+    if (isHtmlWorksheet) {
+        imgContainer.style.display='none';
+        fieldsDiv.style.position='static'; fieldsDiv.style.width='100%'; fieldsDiv.style.height='auto';
+        fieldsDiv.style.display='grid'; fieldsDiv.style.gap='14px';
+    } else {
+        imgContainer.style.display='inline-block';
+        fieldsDiv.style.position='absolute'; fieldsDiv.style.width='100%'; fieldsDiv.style.height='100%';
+        fieldsDiv.style.display='block'; fieldsDiv.style.gap='0';
+    }
+    // بناء حقول الإجابة بعد تحميل الصورة، أو فوراً في الورقة المستقلة.
     img.onload = () => {
         const fieldsDiv = document.getElementById('stFields');
         fieldsDiv.innerHTML = '';
         window.currentStudentWorksheet.fields.forEach(f => {
             const el = document.createElement('div');
-            el.style.cssText = `position:absolute; background:#fef08a; border:2px dashed #ca8a04; border-radius:5px; display:flex; align-items:center; justify-content:center; left:${f.x}%; top:${f.y}%; width:${f.w}px; height:${f.h}px;`;
+            el.style.cssText = isHtmlWorksheet
+                ? 'position:relative;width:100%;min-height:90px;box-sizing:border-box;background:#fff;border:1px solid #cbd5e1;border-right:5px solid #2563eb;border-radius:12px;padding:14px;text-align:right;direction:rtl;overflow:visible;'
+                : `position:absolute; background:#fef08a; border:2px dashed #ca8a04; border-radius:5px; display:flex; align-items:center; justify-content:center; left:${f.x}%; top:${f.y}%; width:${f.w}px; height:${f.h}px;`;
             
+            el.style.cssText += 'padding:8px;overflow:auto;display:block;text-align:right;direction:rtl;background:rgba(255,255,255,.96);border:2px solid #6366f1;z-index:2;';
             let inputHtml = '';
-            if(f.type === 'short_text') inputHtml = `<input type="text" id="${f.id}" style="width:100%; height:100%; border:none; background:transparent; text-align:center; font-weight:bold; outline:none;">`;
-            else if(f.type === 'long_text') inputHtml = `<textarea id="${f.id}" style="width:100%; height:100%; border:none; background:transparent; resize:none; outline:none; padding:5px;"></textarea>`;
-            else inputHtml = `<input type="text" id="${f.id}" style="width:100%; height:100%; border:none; background:transparent; text-align:center; font-weight:bold; outline:none;">`;
-            
+            if (f.htmlQuestion) {
+                inputHtml = `<div style="font-weight:800;font-size:17px;margin-bottom:10px;color:#1e3a8a;">${safeStudentResult(f.prompt)}</div><input id="${f.id}" type="text" placeholder="اكتب إجابتك هنا" style="width:100%;box-sizing:border-box;padding:12px;border:1px solid #94a3b8;border-radius:8px;font-size:17px;direction:auto;">`;
+            } else if (f.type === 'essay') {
+                inputHtml = `<div style="font-weight:bold;margin-bottom:6px;">${safeStudentResult(f.prompt || 'اكتب موضوعاً من سبع جمل')}</div><textarea id="${f.id}" rows="7" placeholder="اكتب هنا سبع جمل..." style="width:100%;height:calc(100% - 45px);min-height:150px;border:1px solid #94a3b8;border-radius:8px;padding:8px;resize:vertical;direction:ltr;text-align:left;font-size:16px;line-height:1.7;"></textarea><small>اكتب سبع جمل كاملة. سيتم تصحيح الموضوع يدوياً.</small>`;
+            } else if (f.type === 'matching') {
+                inputHtml = `<div style="font-weight:bold;margin-bottom:8px;">🔗 صِل بين العناصر الصحيحة</div>` + (f.items||[]).map((item,i)=>`<div style="display:flex;align-items:center;gap:8px;margin:6px 0;"><b style="min-width:35%;">${safeStudentResult(item)}</b><select id="${f.id}_${i}" style="flex:1;padding:7px;border:1px solid #94a3b8;border-radius:6px;"><option value="">اختر المطابق</option>${(f.options||[]).map(o=>`<option value="${safeStudentResult(o)}">${safeStudentResult(o)}</option>`).join('')}</select></div>`).join('');
+            } else if (f.type === 'drag_fill') {
+                inputHtml = `<div style="font-weight:bold;margin-bottom:8px;">🧩 اسحب الكلمات إلى الفراغ المناسب</div><div style="direction:ltr;text-align:left;line-height:2;font-size:17px;">${(f.prompt||'').split('____').map((part,i,arr)=>safeStudentResult(part)+(i<arr.length-1?`<span class="drop-word" data-field="${f.id}" data-slot="${i}" style="display:inline-flex;min-width:75px;min-height:30px;border:2px dashed #2563eb;border-radius:6px;background:#eff6ff;margin:2px;padding:2px;vertical-align:middle;" ondragover="event.preventDefault()" ondrop="dropHomeworkWord(event)"></span>`:'')).join('')}</div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;">${(f.words||[]).map(word=>`<span draggable="true" ondragstart="dragHomeworkWord(event)" data-word="${safeStudentResult(word)}" style="padding:7px 12px;background:#dbeafe;border:1px solid #2563eb;border-radius:8px;cursor:grab;font-weight:bold;">${safeStudentResult(word)}</span>`).join('')}</div>`;
+            } else if (f.type === 'reading') {
+                inputHtml = `<div style="font-weight:bold;color:#1e40af;margin-bottom:6px;">📖 قطعة القراءة</div><div style="white-space:pre-wrap;line-height:1.8;background:#eff6ff;padding:9px;border-radius:7px;margin-bottom:10px;direction:ltr;text-align:left;">${safeStudentResult(f.passage||'')}</div>`+(f.questions||[]).map((q,i)=>`<label style="display:block;font-weight:bold;margin:7px 0 3px;">${i+1}. ${safeStudentResult(q)}</label><input id="${f.id}_${i}" type="text" style="width:100%;padding:8px;border:1px solid #94a3b8;border-radius:6px;direction:ltr;text-align:left;">`).join('');
+            } else if(f.type === 'long_text') inputHtml = `<textarea id="${f.id}" style="width:100%;height:100%;border:none;background:transparent;resize:none;outline:none;padding:5px;"></textarea>`;
+            else inputHtml = `<input type="text" id="${f.id}" style="width:100%;height:100%;border:none;background:transparent;text-align:center;font-weight:bold;outline:none;">`;
             el.innerHTML = inputHtml;
             fieldsDiv.appendChild(el);
         });
@@ -1014,7 +1205,8 @@ window.startStudentWorksheet = async function() {
         document.getElementById('stTitle').innerText = '❌ تعذر عرض الصورة. تحقق من رابط الصورة وصلاحيات Firebase Storage.';
         alert('تعذر تحميل صورة الورقة. قد يكون رابط Firebase Storage غير صالح أو لا يسمح بالوصول.');
     };
-    img.src = window.currentStudentWorksheet.imageUrl;
+    if (isHtmlWorksheet) img.onload();
+    else img.src = window.currentStudentWorksheet.imageUrl;
 }
 
 window.showMyHomeworkResults = async function(){
@@ -1032,6 +1224,14 @@ window.showMyHomeworkResults = async function(){
 };
 function safeStudentResult(v){return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 
+window.dragHomeworkWord = function(event) { event.dataTransfer.setData('text/plain', event.currentTarget.getAttribute('data-word') || ''); };
+window.dropHomeworkWord = function(event) {
+    event.preventDefault();
+    const word = event.dataTransfer.getData('text/plain');
+    const target = event.currentTarget;
+    if (word && target) { target.textContent = word; target.setAttribute('data-answer', word); }
+};
+
 window.submitStudentAnswers = async function() {
     const identity = window.currentStudentIdentity;
     if (!identity || !identity.studentKey || !identity.pinHash) {
@@ -1040,10 +1240,17 @@ window.submitStudentAnswers = async function() {
     }
     const btn = document.querySelector('#stSubmitArea button');
     if (btn) { btn.disabled = true; btn.textContent = '⏳ جارٍ إرسال الإجابات...'; }
-    const answers = {};
-    window.currentStudentWorksheet.fields.forEach(f => {
-        const input = document.getElementById(f.id);
-        if(input) answers[f.id] = input.value;
+    let answers = {};
+    if(window.currentStudentWorksheet.worksheetMode==='custom_html'){
+      if(!window.studentHtmlFrame||!window.studentHtmlBridgeToken){alert('تعذر قراءة ورقة HTML. أعد تحميل الصفحة.');if(btn){btn.disabled=false;btn.textContent='✅ إرسال الإجابات';}return;}
+      window.studentCustomHtmlAnswers=null; window.studentHtmlFrame.contentWindow.postMessage({type:'collect_homework_answers',token:window.studentHtmlBridgeToken},'*');
+      const waitStart=Date.now(); while(window.studentCustomHtmlAnswers===null&&Date.now()-waitStart<2500)await new Promise(r=>setTimeout(r,50));
+      if(window.studentCustomHtmlAnswers===null){alert('لم يستجب نموذج HTML. تأكد أن حقول الإجابة تحتوي على name أو data-question-id.');if(btn){btn.disabled=false;btn.textContent='✅ إرسال الإجابات';}return;} answers=window.studentCustomHtmlAnswers;
+    }else window.currentStudentWorksheet.fields.forEach(f => {
+        if (f.type === 'matching') answers[f.id] = (f.items||[]).map((item,i)=>({item,match:(document.getElementById(f.id+'_'+i)||{}).value||''}));
+        else if (f.type === 'drag_fill') answers[f.id] = Array.from(document.querySelectorAll('.drop-word[data-field="'+f.id+'"]')).map(el=>el.getAttribute('data-answer')||'');
+        else if (f.type === 'reading') answers[f.id] = (f.questions||[]).map((q,i)=>({question:q,answer:(document.getElementById(f.id+'_'+i)||{}).value||''}));
+        else { const input = document.getElementById(f.id); if(input) answers[f.id] = input.value; }
     });
     const worksheetId = new URLSearchParams(window.location.search).get('id');
     // وثيقة ثابتة لكل طالب وورقة عمل: تمنع الإرسال الثاني حتى من جهاز آخر.
@@ -1051,25 +1258,11 @@ window.submitStudentAnswers = async function() {
     const answerRef = firestoreDb.collection('student_answers').doc(answerDocId);
     const lockRef = firestoreDb.collection('homework_submission_locks').doc(answerDocId);
     try {
-        const submissionBatch = firestoreDb.batch();
-        submissionBatch.set(lockRef, {
-            studentKey: identity.studentKey, worksheetId: worksheetId,
-            schoolId: identity.schoolId, studentClass: identity.studentClass,
-            studentName: identity.studentName, studentPinHash: identity.pinHash,
-            lockedAt: firebase.firestore.FieldValue.serverTimestamp()
+        await firestoreDb.runTransaction(async transaction=>{
+          const lockSnap=await transaction.get(lockRef); if(lockSnap.exists){const duplicate=new Error('سبق إرسال هذه الورقة.');duplicate.code='already-submitted';throw duplicate;}
+          transaction.set(lockRef,{studentKey:identity.studentKey,worksheetId:worksheetId,schoolId:identity.schoolId,studentClass:identity.studentClass,studentName:identity.studentName,studentPinHash:identity.pinHash,lockedAt:firebase.firestore.FieldValue.serverTimestamp()});
+          transaction.set(answerRef,{worksheetId:worksheetId,worksheetTitle:window.currentStudentWorksheet.title,studentName:identity.studentName,studentClass:identity.studentClass,schoolId:identity.schoolId,studentKey:identity.studentKey,studentPinHash:identity.pinHash,answers:answers,submittedAt:firebase.firestore.FieldValue.serverTimestamp()});
         });
-        submissionBatch.set(answerRef, {
-            worksheetId: worksheetId,
-            worksheetTitle: window.currentStudentWorksheet.title,
-            studentName: identity.studentName,
-            studentClass: identity.studentClass,
-            schoolId: identity.schoolId,
-            studentKey: identity.studentKey,
-            studentPinHash: identity.pinHash,
-            answers: answers,
-            submittedAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
-        await submissionBatch.commit();
         document.getElementById('stWorkspace').style.display = 'none';
         document.getElementById('stSubmitArea').style.display = 'none';
         document.getElementById('stSuccess').style.display = 'block';
@@ -1077,7 +1270,7 @@ window.submitStudentAnswers = async function() {
     } catch(e) {
         console.error('Student answers submit error:', e);
         const msg = String(e && (e.code || e.message) || '');
-        if (msg.includes('permission-denied') || msg.includes('PERMISSION_DENIED')) {
+        if(e&&e.code==='already-submitted'){alert('سبق لك إرسال هذه الورقة. لا يمكن إرسالها مرة أخرى.');if(btn){btn.disabled=true;btn.textContent='✔ تم إرسال هذه الورقة سابقاً';}} else if (msg.includes('permission-denied') || msg.includes('PERMISSION_DENIED')) {
             alert('لم يتم قبول الإرسال. تأكد من صحة الرقم السري، أو ربما سبق لك إرسال هذه الورقة. يسمح بإرسال واحد فقط لكل طالب ولكل ورقة.');
         } else {
             alert('تعذر إرسال الإجابات: ' + (e.message || e));
@@ -1135,21 +1328,28 @@ async function loadStudentAnswers() {
       const worksheetDoc = await firestoreDb.collection('worksheets').doc(a.worksheetId).get();
       const worksheetData = worksheetDoc.exists ? worksheetDoc.data() : {};
       const answerKey = worksheetData.answerKey || {};
-      const norm = v => String(v == null ? '' : v).trim().toLowerCase().replace(/[\\s.,!?;:،؛]/g,'');
+      const norm = v => (Array.isArray(v) ? v.map(item => item && typeof item === 'object' ? (item.match || item.answer || '') : item).join('') : String(v == null ? '' : v)).trim().toLowerCase().replace(/[\\s.,!?;:،؛|]/g,'');
       let correctFields = [];
       let gradedCount = 0;
       let correctCount = 0;
+      const worksheetFields = Array.isArray(worksheetData.fields) ? worksheetData.fields : [];
+      const customHtmlMode=worksheetData.worksheetMode==='custom_html';
+      const manualFieldIds = [];
       const answerRows = Object.entries(answerMap).map(([fieldId, value], index) => {
-        const hasKey = Object.prototype.hasOwnProperty.call(answerKey, fieldId) && String(answerKey[fieldId]).trim() !== '';
-        if (hasKey) {
-          gradedCount++;
-          if (norm(value) === norm(answerKey[fieldId])) { correctFields.push(fieldId); correctCount++; }
-        }
+        const fieldMeta = worksheetFields.find(f => f.id === fieldId) || {};
+        const rawKey=answerKey[fieldId]; const keyConfig=rawKey&&typeof rawKey==='object'&&!Array.isArray(rawKey)?rawKey:{answer:rawKey};
+        const isManual = fieldMeta.type === 'essay' || fieldMeta.type === 'reading' || fieldMeta.manualGrading === true || (customHtmlMode&&(keyConfig.manual===true || !Object.prototype.hasOwnProperty.call(answerKey,fieldId)));
+        if (isManual) manualFieldIds.push(fieldId);
+        const displayValue = Array.isArray(value) ? value.map(v => typeof v === 'object' ? ((v.item ? v.item + ' ← ' : '') + (v.match || v.answer || '')) : v).join(' | ') : value;
+        const expectedAnswer=customHtmlMode?keyConfig.answer:answerKey[fieldId];
+        const hasKey = !isManual && Object.prototype.hasOwnProperty.call(answerKey, fieldId) && String(expectedAnswer==null?'':expectedAnswer).trim() !== '';
+        if (hasKey) { gradedCount++; if (norm(value) === norm(expectedAnswer)) { correctFields.push(fieldId); correctCount++; } }
         return `
         <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;border-bottom:1px solid #e2e8f0;padding:10px 4px;">
-          <div style="flex:1;min-width:220px;"><b>السؤال ${index+1}</b><div style="white-space:pre-wrap;overflow-wrap:anywhere;color:#334155;">${safeAnswerText(value || '— بدون إجابة —')}</div>
-          <small style="color:#64748b;">${hasKey ? 'الإجابة النموذجية: '+safeAnswerText(answerKey[fieldId]) : 'لا يوجد مفتاح إجابة لهذا السؤال'}</small></div>
-          <span style="font-weight:bold;color:${hasKey && norm(value) === norm(answerKey[fieldId]) ? '#047857' : hasKey ? '#b91c1c' : '#64748b'};">${hasKey ? (norm(value) === norm(answerKey[fieldId]) ? '✔ صحيح (+10)' : '✘ غير صحيح (0)') : 'غير مصحح تلقائيًا'}</span>
+          <div style="flex:1;min-width:220px;"><b>السؤال ${index+1}</b><div style="white-space:pre-wrap;overflow-wrap:anywhere;color:#334155;">${safeAnswerText(displayValue || '— بدون إجابة —')}</div>
+          <small style="color:#64748b;">${hasKey ? 'الإجابة النموذجية: '+safeAnswerText(expectedAnswer) : 'لا يوجد مفتاح إجابة لهذا السؤال'}</small></div>
+          <span style="font-weight:bold;color:${hasKey && norm(value) === norm(expectedAnswer) ? '#047857' : hasKey ? '#b91c1c' : '#64748b'};">${hasKey ? (norm(value) === norm(expectedAnswer) ? '✔ صحيح (+10)' : '✘ غير صحيح (0)') : 'غير مصحح تلقائيًا'}</span>
+          ${isManual ? `<label style="font-weight:bold;">الدرجة اليدوية / 10 <input id="manual-${doc.id}-${fieldId}" type="number" min="0" max="10" value="0" style="width:65px;padding:6px;border:1px solid #94a3b8;border-radius:6px;"></label>` : ''}
         </div>`;
       }).join('');
       const card = document.createElement('section');
@@ -1163,7 +1363,7 @@ async function loadStudentAnswers() {
         </div>
         <div style="margin-top:12px;">${answerRows}</div>
         <div style="display:flex;justify-content:flex-end;margin-top:12px;">
-          <button class="action-btn success" onclick="saveAutomaticStudentScore('${doc.id}',${JSON.stringify(correctFields).replace(/"/g,'&quot;')},${correctCount*10},${Object.keys(answerMap).length*10})">💾 حفظ الدرجة التلقائية</button>
+          ${manualFieldIds.length ? `<button class="action-btn warning" onclick='saveManualStudentScore("${doc.id}",${correctCount*10},${gradedCount*10},${JSON.stringify(manualFieldIds)})'>✍️ اعتماد التصحيح اليدوي وإضافة النقاط</button>` : `<button class="action-btn success" onclick="saveAutomaticStudentScore('${doc.id}',${JSON.stringify(correctFields).replace(/"/g,'&quot;')},${correctCount*10},${Object.keys(answerMap).length*10})">💾 حفظ التصحيح وإضافة النقاط</button>`}
         </div>`;
       list.appendChild(card);
     }
@@ -1248,6 +1448,32 @@ async function awardHomeworkPointsToEmployee(answerId, score) {
     return true;
   });
   return wasAwarded !== false;
+}
+
+async function saveManualStudentScore(answerId, automaticScore, automaticMax, manualFieldIds) {
+  try {
+    const manualScore = manualFieldIds.reduce((sum,id) => {
+      const el = document.getElementById('manual-' + answerId + '-' + id);
+      const n = Number(el && el.value);
+      if (!Number.isFinite(n) || n < 0 || n > 10) throw new Error('يجب أن تكون الدرجة اليدوية لكل سؤال من 0 إلى 10.');
+      return sum + n;
+    }, 0);
+    const score = automaticScore + manualScore;
+    const maxScore = automaticMax + manualFieldIds.length * 10;
+    const answerRef = firestoreDb.collection('student_answers').doc(answerId);
+    const snap = await answerRef.get();
+    if (!snap.exists) throw new Error('لم يتم العثور على إجابة الطالب.');
+    const existing = snap.data() || {};
+    if (existing.pointsCredited === true) { alert('سبق احتساب نقاط هذه الورقة. لم تتم إضافة نقاط جديدة.'); return; }
+    await answerRef.update({score, maxScore, gradingMode:'manual_and_automatic', manualScores:manualFieldIds.reduce((o,id)=>{o[id]=Number(document.getElementById('manual-'+answerId+'-'+id).value);return o;},{}), gradedAt:firebase.firestore.FieldValue.serverTimestamp(), gradedBy:firebaseCurrentUser.uid});
+    const credited = await awardHomeworkPointsToEmployee(answerId, score);
+    if (credited === false) { await answerRef.update({pointsCredited:false,creditStatus:'duplicate',duplicateSubmission:true}); alert('تم حفظ التصحيح، لكن سبق احتساب نقاط هذه الورقة.'); return; }
+    await answerRef.update({pointsCredited:true,creditStatus:'credited'});
+    const a=(await answerRef.get()).data()||{};
+    await firestoreDb.collection('homework_results').doc(answerId).set({schoolId:a.schoolId||'global',worksheetId:a.worksheetId||'',worksheetTitle:a.worksheetTitle||'',studentName:a.studentName||'',studentClass:a.studentClass||'',score,maxScore,awardedAt:firebase.firestore.FieldValue.serverTimestamp(),status:'credited'},{merge:true});
+    alert('تم اعتماد التصحيح اليدوي وإضافة '+score+' نقطة من '+maxScore+'.');
+    loadStudentAnswers();
+  } catch(e) { alert('تعذر اعتماد التصحيح اليدوي: '+e.message); }
 }
 
 async function saveAutomaticStudentScore(answerId, correctFields, score, maxScore) {
