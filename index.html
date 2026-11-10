@@ -950,16 +950,38 @@ window.startStudentWorksheet = async function() {
     const schoolId = String(window.currentStudentWorksheet.schoolId || 'global');
     const studentKey = await homeworkSha256(schoolId + '|' + cls + '|' + homeworkNormalizeName(name));
     const pinHash = await homeworkSha256(studentKey + '|' + pin);
-    // تحقق من الرقم السري داخل Firestore Rules قبل فتح ورقة العمل.
+    // تحقق من الرقم السري في Firebase قبل فتح الورقة.
+    // قواعد Firestore تشترط worksheetId وتستخدمه لفحص قفل الإرسال.
+    const worksheetId = new URLSearchParams(window.location.search).get('id');
+    if (!worksheetId) {
+        alert('تعذر تحديد ورقة العمل. افتح الرابط المرسل من المعلم مرة أخرى.');
+        return;
+    }
     try {
         await firestoreDb.collection('student_pin_checks').add({
-            schoolId: schoolId, studentKey: studentKey, studentName: name,
-            studentClass: cls, studentPinHash: pinHash,
+            schoolId: schoolId,
+            studentKey: studentKey,
+            studentName: name,
+            studentClass: cls,
+            worksheetId: worksheetId,
+            studentPinHash: pinHash,
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
         });
     } catch(pinError) {
-        console.warn('Student PIN validation failed:', pinError);
-        alert('الرقم السري غير صحيح، أو لم يتم إنشاء رقمك بعد. راجع المعلم للحصول على الرقم الصحيح.');
+        console.warn('Student PIN validation failed:', {
+            code: pinError && pinError.code,
+            message: pinError && pinError.message,
+            schoolId: schoolId,
+            studentKey: studentKey,
+            studentClass: cls,
+            worksheetId: worksheetId
+        });
+        const msg = String((pinError && pinError.message) || '');
+        if (msg.includes('permission') || (pinError && pinError.code === 'permission-denied')) {
+            alert('تعذر التحقق من الرقم. تأكد أن المدير أنشأ رقمك لهذا الصف والمدرسة، وأن قواعد Firestore المحدّثة منشورة. إذا سبق أن أرسلت هذه الورقة فسيمنعك النظام من إرسالها مرة أخرى.');
+        } else {
+            alert('تعذر التحقق من الرقم السري. راجع المعلم للتأكد من إنشاء رقمك، ثم حاول مرة أخرى.');
+        }
         return;
     }
     window.currentStudentIdentity = { schoolId, studentKey, pinHash, studentName: name, studentClass: cls };
