@@ -1057,28 +1057,64 @@ function buildStudentHtmlSrcdoc(source,token){
  const bridge=`<script>
 (function(){
  var t=${safeToken};
+ // مخزن موحد للإجابات التي تسجلها ألعاب HTML ذات التفاعل البرمجي.
+ var answerStore=window.__homeworkAnswerStore=window.__homeworkAnswerStore||{};
+ window.setHomeworkAnswer=function(questionId,value){if(questionId!==undefined&&questionId!==null&&String(questionId).trim())answerStore[String(questionId)]=value;};
+ window.clearHomeworkAnswer=function(questionId){delete answerStore[String(questionId)];};
+ function put(id,value,append){
+   if(!id)return; id=String(id);
+   if(append){if(!Array.isArray(answerStore[id]))answerStore[id]=answerStore[id]===undefined?[]:[answerStore[id]];answerStore[id].push(value);}
+   else answerStore[id]=value;
+ }
+ function questionId(el,index){
+   var owner=el.closest&&el.closest('[data-question-id]');
+   return el.getAttribute('data-question-id')||el.getAttribute('name')||(owner&&owner.getAttribute('data-question-id'))||el.id||'';
+ }
  function collect(){
    var a={};
-   document.querySelectorAll('input[name],textarea[name],select[name],input[data-question-id],textarea[data-question-id],select[data-question-id],[contenteditable="true"][data-question-id]').forEach(function(el){
-     var id=el.getAttribute('data-question-id')||el.name;
-     if(!id||el.disabled)return;
-     var v;
-     if(el.type==='radio'){if(!el.checked)return;v=el.value;}
-     else if(el.type==='checkbox'){if(!a[id])a[id]=[];if(el.checked)a[id].push(el.value||'on');return;}
-     else if(el.isContentEditable){v=el.innerText;}
-     else v=el.value;
-     if(a[id]===undefined)a[id]=v;else if(Array.isArray(a[id]))a[id].push(v);else a[id]=[a[id],v];
+   Object.keys(answerStore).forEach(function(k){a[k]=answerStore[k];});
+   // حقول HTML القياسية: النصوص، القوائم، radio، checkbox، contenteditable.
+   var controls=document.querySelectorAll('input,textarea,select,[contenteditable="true"][data-question-id]');
+   controls.forEach(function(el,index){
+     if(el.disabled||el.type==='submit'||el.type==='button'||el.type==='reset'||el.type==='file')return;
+     var id=questionId(el,index); if(!id)return;
+     if(el.type==='radio'){if(el.checked)put(id,el.value,false);return;}
+     if(el.type==='checkbox'){if(!Array.isArray(a[id]))a[id]=[];if(el.checked)a[id].push(el.value||'on');return;}
+     var v=el.isContentEditable?el.innerText:(el.tagName==='SELECT'&&el.multiple?Array.from(el.selectedOptions).map(function(o){return o.value;}):el.value);
+     put(id,v,false);
+   });
+   // عناصر الفراغات والسحب والإفلات. لا نقرأ data-answer لأنه قد يكون مفتاح الإجابة.
+   var interactive=' .blank[data-value],.blank[data-user-answer],[data-answer-slot],[data-drop-target],[data-drop-slot],.drop-zone,.drop-word,[data-question-id][data-value],[data-question-id][data-selected],[data-question-id][data-user-answer]';
+   var blankNumber=0;
+   document.querySelectorAll(interactive).forEach(function(el,index){
+     var id=questionId(el,index);
+     if(el.matches('.blank')&&!el.getAttribute('data-question-id')&&!el.getAttribute('name')){blankNumber++;id=/^q\d+$/i.test(el.id||'')?el.id:('q'+blankNumber);}
+     if(!id&&el.matches('.blank')){blankNumber++;id='q'+blankNumber;}
+     if(!id)return;
+     var v=el.getAttribute('data-user-answer');
+     if(v===null)v=el.getAttribute('data-value');
+     if(v===null)v=el.getAttribute('data-selected');
+     if(v===null&&el.hasAttribute('data-answer-slot'))v=el.textContent.trim();
+     if(v===null&&el.hasAttribute('data-drop-target'))v=el.textContent.trim();
+     if(v===null&&el.hasAttribute('data-drop-slot'))v=el.textContent.trim();
+     if(v===null&&el.classList.contains('drop-zone'))v=el.textContent.trim();
+     if(v===null&&el.classList.contains('drop-word'))v=el.getAttribute('data-answer')||el.textContent.trim();
+     if(v!==null&&String(v).trim()!=='')put(id,v,false);
+   });
+   // أزرار الاختيار التي تستخدم aria-pressed / aria-selected أو class=selected.
+   document.querySelectorAll('button[aria-pressed="true"],button.selected,[role="option"][aria-selected="true"],[role="radio"][aria-checked="true"],[data-question-id].selected').forEach(function(el,index){
+     var id=questionId(el,index); if(!id)return;
+     var v=el.getAttribute('data-value'); if(v===null)v=el.getAttribute('value'); if(v===null)v=el.textContent.trim();
+     if(v!==''){
+       if(Array.isArray(a[id])){if(!a[id].includes(v))a[id].push(v);}
+       else put(id,v,false);
+     }
    });
    parent.postMessage({type:'homework_answers',token:t,answers:a},'*');
  }
- window.addEventListener('message',function(e){
-   if(!e.data||e.data.type!=='collect_homework_answers'||e.data.token!==t)return;
-   collect();
- });
- function reportHeight(){
-   var h=Math.max(document.documentElement.scrollHeight,document.body?document.body.scrollHeight:0,500);
-   parent.postMessage({type:'homework_frame_height',token:t,height:Math.min(h,5000)},'*');
- }
+ window.collectHomeworkAnswers=collect;
+ window.addEventListener('message',function(e){if(!e.data||e.data.type!=='collect_homework_answers'||e.data.token!==t)return;collect();});
+ function reportHeight(){var h=Math.max(document.documentElement.scrollHeight,document.body?document.body.scrollHeight:0,500);parent.postMessage({type:'homework_frame_height',token:t,height:Math.min(h,5000)},'*');}
  document.addEventListener('submit',function(e){e.preventDefault();},true);
  window.addEventListener('load',function(){setTimeout(reportHeight,100);setTimeout(reportHeight,700);});
  if(window.ResizeObserver){new ResizeObserver(reportHeight).observe(document.documentElement);}
@@ -1086,9 +1122,9 @@ function buildStudentHtmlSrcdoc(source,token){
 })();
 <\/script>`;
  let html=String(source||'').trim();
- if(!html) return '<!doctype html><html><body style="font-family:Arial;padding:20px;color:#b91c1c">لم يتم حفظ محتوى ورقة HTML. ارجع إلى لوحة المدير وأعد لصق الكود ثم احفظ الورقة.</body></html>';
- if(!/<html[\s>]/i.test(html)) html='<!doctype html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head><body>'+html+'</body></html>';
- if(/<\/body\s*>/i.test(html)) return html.replace(/<\/body\s*>/i,bridge+'</body>');
+ if(!html)return '<!doctype html><html><body style="font-family:Arial;padding:20px;color:#b91c1c">لم يتم حفظ محتوى ورقة HTML. ارجع إلى لوحة المدير وأعد لصق الكود ثم احفظ الورقة.</body></html>';
+ if(!/<html[\s>]/i.test(html))html='<!doctype html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head><body>'+html+'</body></html>';
+ if(/<\/body\s*>/i.test(html))return html.replace(/<\/body\s*>/i,bridge+'</body>');
  return html+bridge;
 }
 window.startStudentWorksheet = async function() {
@@ -1149,17 +1185,47 @@ window.startStudentWorksheet = async function() {
     const imgContainer = document.getElementById('stImgContainer');
     const fieldsDiv = document.getElementById('stFields');
     if(isCustomHtmlWorksheet){
-      imgContainer.style.display='none'; fieldsDiv.style.position='static'; fieldsDiv.style.width='100%'; fieldsDiv.style.height='auto'; fieldsDiv.style.display='block'; fieldsDiv.innerHTML='';
-      const frame=document.createElement('iframe'); frame.id='studentCustomHtmlFrame'; frame.setAttribute('sandbox','allow-scripts allow-forms allow-modals'); frame.setAttribute('title','ورقة العمل التفاعلية'); frame.style.cssText='display:block;width:100%;min-height:700px;height:700px;border:0;border-radius:12px;background:#fff;'; fieldsDiv.appendChild(frame);
-      window.studentHtmlFrame=frame; window.studentHtmlBridgeToken='hw_'+Date.now()+'_'+Math.random().toString(36).slice(2); window.studentCustomHtmlAnswers=null;
+      // إخفاء صورة الورقة فقط؛ لا تخفِ الحاوية الأم التي تضم إطار HTML.
+      img.style.display='none';
+      imgContainer.style.display='block';
+      imgContainer.style.position='static';
+      imgContainer.style.width='100%';
+      imgContainer.style.maxWidth='100%';
+      imgContainer.style.boxSizing='border-box';
+
+      // إظهار مساحة HTML بعرض كامل وارتفاع تلقائي.
+      fieldsDiv.style.position='static';
+      fieldsDiv.style.top='auto';
+      fieldsDiv.style.left='auto';
+      fieldsDiv.style.width='100%';
+      fieldsDiv.style.height='auto';
+      fieldsDiv.style.minHeight='700px';
+      fieldsDiv.style.display='block';
+      fieldsDiv.style.boxSizing='border-box';
+      fieldsDiv.innerHTML='';
+
+      const frame=document.createElement('iframe');
+      frame.id='studentCustomHtmlFrame';
+      frame.setAttribute('sandbox','allow-scripts allow-forms allow-modals');
+      frame.setAttribute('title','ورقة العمل التفاعلية');
+      frame.style.cssText='display:block;width:100%;min-width:0;min-height:700px;height:700px;border:0;border-radius:12px;background:#fff;box-sizing:border-box;';
+      fieldsDiv.appendChild(frame);
+
+      window.studentHtmlFrame=frame;
+      window.studentHtmlBridgeToken='hw_'+Date.now()+'_'+Math.random().toString(36).slice(2);
+      window.studentCustomHtmlAnswers=null;
       if(window.studentHtmlMessageHandler)window.removeEventListener('message',window.studentHtmlMessageHandler);
       window.studentHtmlMessageHandler=function(e){
         if(e.source!==frame.contentWindow||!e.data||e.data.token!==window.studentHtmlBridgeToken)return;
         if(e.data.type==='homework_answers')window.studentCustomHtmlAnswers=e.data.answers||{};
-        if(e.data.type==='homework_frame_height'&&Number(e.data.height)>0)frame.style.height=Math.max(700,Math.min(Number(e.data.height)+30,5000))+'px';
-      }; window.addEventListener('message',window.studentHtmlMessageHandler);
+        if(e.data.type==='homework_frame_height'&&Number(e.data.height)>0){
+          frame.style.height=Math.max(700,Math.min(Number(e.data.height)+30,5000))+'px';
+        }
+      };
+      window.addEventListener('message',window.studentHtmlMessageHandler);
       const htmlSource=window.currentStudentWorksheet.htmlContent||'';
-      frame.srcdoc=buildStudentHtmlSrcdoc(htmlSource,window.studentHtmlBridgeToken); return;
+      frame.srcdoc=buildStudentHtmlSrcdoc(htmlSource,window.studentHtmlBridgeToken);
+      return;
     }
     if (isHtmlWorksheet) {
         imgContainer.style.display='none';
@@ -1309,67 +1375,116 @@ function safeAnswerText(value) {
     '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
   }[ch]));
 }
-async function loadStudentAnswers() {
-  const list = document.getElementById('studentAnswersList');
-  list.innerHTML = '<div class="loading">⏳ جارٍ تحميل الإجابات...</div>';
-  try {
-    let query = firestoreDb.collection('student_answers').orderBy('submittedAt','desc');
-    const worksheetId = document.getElementById('answersWorksheetFilter').value;
-    if (worksheetId) query = query.where('worksheetId','==',worksheetId);
-    const snap = await query.get();
-    if (snap.empty) {
-      list.innerHTML = '<div class="empty-message">لا توجد إجابات مرسلة حتى الآن.</div>';
-      return;
+function homeworkGradeNormalize(value, options){
+  options=options||{};
+  if(Array.isArray(value)){
+    var parts=value.map(function(v){
+      if(v&&typeof v==='object'){
+        if(Object.prototype.hasOwnProperty.call(v,'match'))return homeworkGradeNormalize(v.match,options);
+        if(Object.prototype.hasOwnProperty.call(v,'answer'))return homeworkGradeNormalize(v.answer,options);
+        if(Object.prototype.hasOwnProperty.call(v,'value'))return homeworkGradeNormalize(v.value,options);
+      }
+      return homeworkGradeNormalize(v,options);
+    });
+    if(options.unordered)parts.sort();
+    return parts.join('|');
+  }
+  if(value&&typeof value==='object'){
+    if(Object.prototype.hasOwnProperty.call(value,'match'))return homeworkGradeNormalize(value.match,options);
+    if(Object.prototype.hasOwnProperty.call(value,'answer'))return homeworkGradeNormalize(value.answer,options);
+    if(Object.prototype.hasOwnProperty.call(value,'value'))return homeworkGradeNormalize(value.value,options);
+    return JSON.stringify(value);
+  }
+  var out=String(value==null?'':value).normalize('NFKC').trim();
+  out=out.replace(/[\u064B-\u065F\u0670\u0640]/g,'');
+  if(!options.caseSensitive)out=out.toLocaleLowerCase();
+  if(options.ignorePunctuation!==false)out=out.replace(/[\s.,!?;:،؛|؟'"()[\]{}ـ\-_/\\]+/g,'');
+  else out=out.replace(/\s+/g,' ');
+  return out;
+}
+function homeworkAnswerIsCorrect(studentValue,keyConfig){
+  var cfg=(keyConfig&&typeof keyConfig==='object'&&!Array.isArray(keyConfig))?keyConfig:{answer:keyConfig};
+  var expected=Object.prototype.hasOwnProperty.call(cfg,'answer')?cfg.answer:undefined;
+  var accepted=[];
+  if(expected!==undefined)accepted.push(expected);
+  if(Array.isArray(cfg.alternatives))accepted=accepted.concat(cfg.alternatives);
+  if(Array.isArray(cfg.acceptedAnswers))accepted=accepted.concat(cfg.acceptedAnswers);
+  if(expected===undefined&&accepted.length===0)return false;
+  var opts={caseSensitive:cfg.caseSensitive===true,ignorePunctuation:cfg.ignorePunctuation!==false,unordered:cfg.unordered===true};
+  if(typeof studentValue==='number'||typeof expected==='number'){
+    var sv=Number(studentValue);
+    if(Number.isFinite(sv)){
+      for(var i=0;i<accepted.length;i++){
+        var ev=Number(accepted[i]);
+        if(Number.isFinite(ev)&&Math.abs(sv-ev)<=Number(cfg.numericTolerance||0))return true;
+      }
     }
-    list.innerHTML = '';
-    for (const doc of snap.docs) {
-      const a = doc.data();
-      const answerMap = a.answers || {};
-      const worksheetDoc = await firestoreDb.collection('worksheets').doc(a.worksheetId).get();
-      const worksheetData = worksheetDoc.exists ? worksheetDoc.data() : {};
-      const answerKey = worksheetData.answerKey || {};
-      const norm = v => (Array.isArray(v) ? v.map(item => item && typeof item === 'object' ? (item.match || item.answer || '') : item).join('') : String(v == null ? '' : v)).trim().toLowerCase().replace(/[\\s.,!?;:،؛|]/g,'');
-      let correctFields = [];
-      let gradedCount = 0;
-      let correctCount = 0;
-      const worksheetFields = Array.isArray(worksheetData.fields) ? worksheetData.fields : [];
+  }
+  var actual=homeworkGradeNormalize(studentValue,opts);
+  return accepted.some(function(candidate){return actual===homeworkGradeNormalize(candidate,opts);});
+}
+async function loadStudentAnswers() {
+  const list=document.getElementById('studentAnswersList');
+  list.innerHTML='<div class="loading">⏳ جارٍ تحميل الإجابات...</div>';
+  try{
+    let query=firestoreDb.collection('student_answers').orderBy('submittedAt','desc');
+    const worksheetId=document.getElementById('answersWorksheetFilter').value;
+    if(worksheetId)query=query.where('worksheetId','==',worksheetId);
+    const snap=await query.get();
+    if(snap.empty){list.innerHTML='<div class="empty-message">لا توجد إجابات مرسلة حتى الآن.</div>';return;}
+    list.innerHTML='';
+    for(const doc of snap.docs){
+      const a=doc.data(), answerMap=a.answers||{};
+      const worksheetDoc=await firestoreDb.collection('worksheets').doc(a.worksheetId).get();
+      const worksheetData=worksheetDoc.exists?worksheetDoc.data():{};
+      const answerKey=worksheetData.answerKey||{};
+      const worksheetFields=Array.isArray(worksheetData.fields)?worksheetData.fields:[];
       const customHtmlMode=worksheetData.worksheetMode==='custom_html';
-      const manualFieldIds = [];
-      const answerRows = Object.entries(answerMap).map(([fieldId, value], index) => {
-        const fieldMeta = worksheetFields.find(f => f.id === fieldId) || {};
-        const rawKey=answerKey[fieldId]; const keyConfig=rawKey&&typeof rawKey==='object'&&!Array.isArray(rawKey)?rawKey:{answer:rawKey};
-        const isManual = fieldMeta.type === 'essay' || fieldMeta.type === 'reading' || fieldMeta.manualGrading === true || (customHtmlMode&&(keyConfig.manual===true || !Object.prototype.hasOwnProperty.call(answerKey,fieldId)));
-        if (isManual) manualFieldIds.push(fieldId);
-        const displayValue = Array.isArray(value) ? value.map(v => typeof v === 'object' ? ((v.item ? v.item + ' ← ' : '') + (v.match || v.answer || '')) : v).join(' | ') : value;
-        const expectedAnswer=customHtmlMode?keyConfig.answer:answerKey[fieldId];
-        const hasKey = !isManual && Object.prototype.hasOwnProperty.call(answerKey, fieldId) && String(expectedAnswer==null?'':expectedAnswer).trim() !== '';
-        if (hasKey) { gradedCount++; if (norm(value) === norm(expectedAnswer)) { correctFields.push(fieldId); correctCount++; } }
-        return `
-        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;border-bottom:1px solid #e2e8f0;padding:10px 4px;">
-          <div style="flex:1;min-width:220px;"><b>السؤال ${index+1}</b><div style="white-space:pre-wrap;overflow-wrap:anywhere;color:#334155;">${safeAnswerText(displayValue || '— بدون إجابة —')}</div>
-          <small style="color:#64748b;">${hasKey ? 'الإجابة النموذجية: '+safeAnswerText(expectedAnswer) : 'لا يوجد مفتاح إجابة لهذا السؤال'}</small></div>
-          <span style="font-weight:bold;color:${hasKey && norm(value) === norm(expectedAnswer) ? '#047857' : hasKey ? '#b91c1c' : '#64748b'};">${hasKey ? (norm(value) === norm(expectedAnswer) ? '✔ صحيح (+10)' : '✘ غير صحيح (0)') : 'غير مصحح تلقائيًا'}</span>
-          ${isManual ? `<label style="font-weight:bold;">الدرجة اليدوية / 10 <input id="manual-${doc.id}-${fieldId}" type="number" min="0" max="10" value="0" style="width:65px;padding:6px;border:1px solid #94a3b8;border-radius:6px;"></label>` : ''}
+      const allIds=Array.from(new Set(Object.keys(answerMap).concat(Object.keys(answerKey))));
+      let correctFields=[],gradedCount=0,correctCount=0,manualFieldIds=[],maxAutoScore=0;
+      const answerRows=allIds.map((fieldId,index)=>{
+        const hasStudentAnswer=Object.prototype.hasOwnProperty.call(answerMap,fieldId);
+        const value=hasStudentAnswer?answerMap[fieldId]:'';
+        const fieldMeta=worksheetFields.find(f=>String(f.id)===String(fieldId))||{};
+        const rawKey=answerKey[fieldId];
+        const keyConfig=(rawKey&&typeof rawKey==='object'&&!Array.isArray(rawKey))?rawKey:{answer:rawKey};
+        const hasKey=Object.prototype.hasOwnProperty.call(answerKey,fieldId)&&(
+          Object.prototype.hasOwnProperty.call(keyConfig,'answer')||Array.isArray(keyConfig.alternatives)||Array.isArray(keyConfig.acceptedAnswers)
+        );
+        const isManual=fieldMeta.type==='essay'||fieldMeta.type==='reading'||fieldMeta.manualGrading===true||
+          (customHtmlMode&&(keyConfig.manual===true||!hasKey));
+        if(isManual&&!manualFieldIds.includes(fieldId))manualFieldIds.push(fieldId);
+        let isCorrect=false;
+        if(hasKey&&!isManual){gradedCount++;maxAutoScore+=10;isCorrect=hasStudentAnswer&&homeworkAnswerIsCorrect(value,keyConfig);if(isCorrect){correctFields.push(fieldId);correctCount++;}}
+        const displayValue=(v)=>{
+          if(v===undefined||v===null||v==='')return '— بدون إجابة —';
+          if(Array.isArray(v))return v.map(x=>typeof x==='object'?JSON.stringify(x):String(x)).join(' | ');
+          if(typeof v==='object')return JSON.stringify(v);
+          return String(v);
+        };
+        const expectedDisplay=hasKey?(Object.prototype.hasOwnProperty.call(keyConfig,'answer')?keyConfig.answer:(keyConfig.alternatives||keyConfig.acceptedAnswers||[])):null;
+        const expectedText=expectedDisplay===null?'':displayValue(expectedDisplay);
+        return `<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;border-bottom:1px solid #e2e8f0;padding:10px 4px;">
+          <div style="flex:1;min-width:220px;"><b>السؤال ${index+1} (${safeAnswerText(fieldId)})</b><div style="white-space:pre-wrap;overflow-wrap:anywhere;color:#334155;">${safeAnswerText(displayValue(value))}</div>
+          <small style="color:#64748b;">${hasKey?'الإجابة النموذجية: '+safeAnswerText(expectedText):'لا يوجد مفتاح إجابة لهذا السؤال'}</small></div>
+          <span style="font-weight:bold;color:${hasKey&&!isManual?(isCorrect?'#047857':'#b91c1c'):'#64748b'};">${hasKey&&!isManual?(isCorrect?'✔ صحيح (+10)':'✘ غير صحيح (0)'):'غير مصحح تلقائيًا'}</span>
+          ${isManual?`<label style="font-weight:bold;">الدرجة اليدوية / 10 <input id="manual-${doc.id}-${fieldId}" type="number" min="0" max="10" value="0" style="width:65px;padding:6px;border:1px solid #94a3b8;border-radius:6px;"></label>`:''}
         </div>`;
       }).join('');
-      const card = document.createElement('section');
-      card.style.cssText = 'border:1px solid #cbd5e1;border-radius:12px;padding:16px;margin:0 0 14px;background:#fff;';
-      card.innerHTML = `
-        <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;background:#f1f5f9;padding:12px;border-radius:8px;">
-          <div><h3 style="margin:0;color:#1e3a8a;">${safeAnswerText(a.studentName || 'طالب')}</h3>
-          <div>الصف: ${safeAnswerText(a.studentClass || '—')} | الورقة: ${safeAnswerText(a.worksheetTitle || '—')}</div>
-          <small>تاريخ الإرسال: ${a.submittedAt && a.submittedAt.toDate ? a.submittedAt.toDate().toLocaleString('ar-QA') : '—'}</small></div>
-          <div style="text-align:center;min-width:130px;"><div style="font-weight:bold;color:#047857;">التصحيح التلقائي</div><div id="score-${doc.id}" style="font-size:28px;font-weight:900;">${correctCount*10} / ${Object.keys(answerMap).length*10}</div><small>تمت مراجعة الإجابات النموذجية المتاحة: ${gradedCount} من ${Object.keys(answerMap).length} سؤال</small></div>
-        </div>
-        <div style="margin-top:12px;">${answerRows}</div>
+      const automaticScore=correctCount*10;
+      const totalMax=(gradedCount+manualFieldIds.length)*10;
+      const card=document.createElement('section');
+      card.style.cssText='border:1px solid #cbd5e1;border-radius:12px;padding:16px;margin:0 0 14px;background:#fff;';
+      card.innerHTML=`<div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;background:#f1f5f9;padding:12px;border-radius:8px;">
+        <div><h3 style="margin:0;color:#1e3a8a;">${safeAnswerText(a.studentName||'طالب')}</h3><div>الصف: ${safeAnswerText(a.studentClass||'—')} | الورقة: ${safeAnswerText(a.worksheetTitle||'—')}</div><small>تاريخ الإرسال: ${a.submittedAt&&a.submittedAt.toDate?a.submittedAt.toDate().toLocaleString('ar-QA'):'—'}</small></div>
+        <div style="text-align:center;min-width:130px;"><div style="font-weight:bold;color:#047857;">التصحيح التلقائي</div><div id="score-${doc.id}" style="font-size:28px;font-weight:900;">${automaticScore} / ${totalMax}</div><small>أسئلة مصححة تلقائيًا: ${gradedCount} | يدوية: ${manualFieldIds.length}</small></div></div>
+        <div style="margin-top:12px;">${answerRows||'<p>لم يتم التقاط أي إجابات.</p>'}</div>
         <div style="display:flex;justify-content:flex-end;margin-top:12px;">
-          ${manualFieldIds.length ? `<button class="action-btn warning" onclick='saveManualStudentScore("${doc.id}",${correctCount*10},${gradedCount*10},${JSON.stringify(manualFieldIds)})'>✍️ اعتماد التصحيح اليدوي وإضافة النقاط</button>` : `<button class="action-btn success" onclick="saveAutomaticStudentScore('${doc.id}',${JSON.stringify(correctFields).replace(/"/g,'&quot;')},${correctCount*10},${Object.keys(answerMap).length*10})">💾 حفظ التصحيح وإضافة النقاط</button>`}
+        ${manualFieldIds.length?`<button class="action-btn warning" onclick='saveManualStudentScore("${doc.id}",${automaticScore},${maxAutoScore},${JSON.stringify(manualFieldIds)})'>✍️ اعتماد التصحيح اليدوي وإضافة النقاط</button>`:`<button class="action-btn success" onclick='saveAutomaticStudentScore("${doc.id}",${JSON.stringify(correctFields)},${automaticScore},${totalMax})'>💾 حفظ التصحيح وإضافة النقاط</button>`}
         </div>`;
       list.appendChild(card);
     }
-  } catch(e) {
-    list.innerHTML = '<div class="error">تعذر قراءة إجابات الطلاب: '+safeAnswerText(e.message || e)+'</div>';
-  }
+  }catch(e){list.innerHTML='<div class="error">تعذر قراءة إجابات الطلاب: '+safeAnswerText(e.message||e)+'</div>';}
 }
 async function awardHomeworkPointsToEmployee(answerId, score) {
   const answerSnap = await firestoreDb.collection('student_answers').doc(answerId).get();
