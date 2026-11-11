@@ -271,39 +271,38 @@ let firebaseProfile = null;
 const POINTS_APP_ID = 'points';
 const POINTS_FUNCTIONS_REGION = 'us-central1';
 let pointsLicenseVerified = false;
-let pointsLicenseCheckInProgress = false;
+let pointsLicenseCheckPromise = null;
 
+// مشاركة نفس طلب التحقق إذا وصل تسجيل الدخول واستعادة الجلسة في الوقت نفسه.
 async function verifyPointsLicense() {
-    if (pointsLicenseCheckInProgress) {
-        throw new Error('جارٍ التحقق من الترخيص، يرجى الانتظار.');
-    }
-    pointsLicenseCheckInProgress = true;
-    pointsLicenseVerified = false;
+    if (pointsLicenseCheckPromise) return pointsLicenseCheckPromise;
 
-    try {
-        if (!firebaseAuth.currentUser) {
-            throw new Error('يجب تسجيل الدخول أولاً.');
+    pointsLicenseCheckPromise = (async () => {
+        pointsLicenseVerified = false;
+        if (!firebaseAuth.currentUser) throw new Error('يجب تسجيل الدخول أولاً.');
+        if (typeof firebase.app().functions !== 'function') {
+            throw new Error('مكتبة Firebase Functions لم تُحمّل. حدّث الصفحة ثم حاول مرة أخرى.');
         }
-
         const licenseFunction = firebase.app()
             .functions(POINTS_FUNCTIONS_REGION)
             .httpsCallable('checkAppLicense');
-
         const response = await licenseFunction({ appId: POINTS_APP_ID });
         const result = response && response.data ? response.data : {};
-
         if (result.success !== true) {
             throw new Error(result.message || 'الترخيص غير نشط أو غير صالح لهذه النسخة.');
         }
-
         pointsLicenseVerified = true;
         return result;
+    })();
+
+    try {
+        return await pointsLicenseCheckPromise;
     } catch (error) {
         pointsLicenseVerified = false;
         console.error('POINTS license verification failed:', error);
         throw error;
     } finally {
-        pointsLicenseCheckInProgress = false;
+        pointsLicenseCheckPromise = null;
     }
 }
 
@@ -439,10 +438,9 @@ firebaseAuth.onAuthStateChanged(async function(user) {
         showMainApp();
         initializeDashboard();
     } catch (e) {
+        // لا نسجل خروج المدير بسبب عطل اتصال مؤقت؛ نظهر سبب الفشل ونسمح بإعادة المحاولة.
         console.error('Authentication/license gate error:', e);
-        await firebaseAuth.signOut().catch(() => {});
-        firebaseCurrentUser = null;
-        firebaseProfile = null;
+        firebaseCurrentUser = user;
         showLicenseError(e);
     }
 });
@@ -455,9 +453,8 @@ setInterval(async function() {
     try {
         await verifyPointsLicense();
     } catch (e) {
-        await firebaseAuth.signOut().catch(() => {});
-        firebaseCurrentUser = null;
-        firebaseProfile = null;
+        // الإيقاف الحقيقي يظهر برسالة الخادم؛ لا نمسح جلسة Firebase عند خطأ شبكة عابر.
+        pointsLicenseVerified = false;
         showLicenseError(e);
     }
 }, 5 * 60 * 1000);
