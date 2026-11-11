@@ -7,6 +7,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-functions-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
 <script>if (window.pdfjsLib) { pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js"; }</script>
@@ -266,6 +267,57 @@ const ADMIN_EMAIL = 'a.atia1201@education.qa';
 let firebaseCurrentUser = null;
 let firebaseProfile = null;
 
+// ==================== التحقق المركزي من ترخيص نسخة المدير ====================
+const POINTS_APP_ID = 'points';
+const POINTS_FUNCTIONS_REGION = 'us-central1';
+let pointsLicenseVerified = false;
+let pointsLicenseCheckInProgress = false;
+
+async function verifyPointsLicense() {
+    if (pointsLicenseCheckInProgress) {
+        throw new Error('جارٍ التحقق من الترخيص، يرجى الانتظار.');
+    }
+    pointsLicenseCheckInProgress = true;
+    pointsLicenseVerified = false;
+
+    try {
+        if (!firebaseAuth.currentUser) {
+            throw new Error('يجب تسجيل الدخول أولاً.');
+        }
+
+        const licenseFunction = firebase.app()
+            .functions(POINTS_FUNCTIONS_REGION)
+            .httpsCallable('checkAppLicense');
+
+        const response = await licenseFunction({ appId: POINTS_APP_ID });
+        const result = response && response.data ? response.data : {};
+
+        if (result.success !== true) {
+            throw new Error(result.message || 'الترخيص غير نشط أو غير صالح لهذه النسخة.');
+        }
+
+        pointsLicenseVerified = true;
+        return result;
+    } catch (error) {
+        pointsLicenseVerified = false;
+        console.error('POINTS license verification failed:', error);
+        throw error;
+    } finally {
+        pointsLicenseCheckInProgress = false;
+    }
+}
+
+function showLicenseError(error) {
+    const message = error && error.message ? error.message : 'تعذر التحقق من ترخيص البرنامج.';
+    const errorEl = document.getElementById('loginError');
+    if (errorEl) {
+        errorEl.style.color = '#dc2626';
+        errorEl.textContent = '🔒 ' + message;
+    }
+    showLogin();
+}
+
+
 function isValidEmail(email) {
     return email && email.toLowerCase().endsWith('@education.qa');
 }
@@ -333,9 +385,9 @@ document.getElementById('loginBtn').addEventListener('click', async function() {
 
         firebaseCurrentUser = user;
         firebaseProfile = profile;
-        errorDiv.style.color = '#16a34a';
-        errorDiv.textContent = '✅ تم تسجيل الدخول';
-        setTimeout(() => { showMainApp(); initializeDashboard(); }, 500);
+        errorDiv.style.color = '#f59e0b';
+        errorDiv.textContent = '⏳ تم تسجيل الدخول. جارٍ التحقق من ترخيص نسخة المدير...';
+        // onAuthStateChanged will verify the license before opening the dashboard.
 
     } catch (err) {
         console.error('Login error:', err);
@@ -357,20 +409,58 @@ document.getElementById('loginPassword').addEventListener('keypress', function(e
 
 // ==================== استعادة الجلسة ====================
 firebaseAuth.onAuthStateChanged(async function(user) {
-    if (!user) { showLogin(); return; }
+    pointsLicenseVerified = false;
+    if (!user) {
+        firebaseCurrentUser = null;
+        firebaseProfile = null;
+        showLogin();
+        return;
+    }
     try {
         const profileSnap = await usersRef.doc(user.uid).get();
-        if (!profileSnap.exists) { await firebaseAuth.signOut(); showLogin(); return; }
+        if (!profileSnap.exists) {
+            await firebaseAuth.signOut();
+            showLogin();
+            return;
+        }
         const profile = profileSnap.data();
-        if (profile.role !== 'admin' || user.uid !== ADMIN_UID) { await firebaseAuth.signOut(); showLogin(); return; }
+        if (profile.role !== 'admin' || user.uid !== ADMIN_UID) {
+            await firebaseAuth.signOut();
+            showLogin();
+            return;
+        }
+
         firebaseCurrentUser = user;
         firebaseProfile = profile;
+
+        // لا تُفتح لوحة المدير إلا بعد نجاح التحقق المركزي من الترخيص.
+        await verifyPointsLicense();
+
         showMainApp();
         initializeDashboard();
-    } catch (e) { console.error(e); showLogin(); }
+    } catch (e) {
+        console.error('Authentication/license gate error:', e);
+        await firebaseAuth.signOut().catch(() => {});
+        firebaseCurrentUser = null;
+        firebaseProfile = null;
+        showLicenseError(e);
+    }
 });
 
 setInterval(updateDateTime, 1000);
+
+// إعادة فحص الترخيص دوريًا حتى ينعكس إيقاف الترخيص أثناء بقاء الصفحة مفتوحة.
+setInterval(async function() {
+    if (!firebaseAuth.currentUser || !firebaseCurrentUser || !pointsLicenseVerified) return;
+    try {
+        await verifyPointsLicense();
+    } catch (e) {
+        await firebaseAuth.signOut().catch(() => {});
+        firebaseCurrentUser = null;
+        firebaseProfile = null;
+        showLicenseError(e);
+    }
+}, 5 * 60 * 1000);
 
 // ==================== أزرار النظام ====================
 document.getElementById('refreshBtn').addEventListener('click', function() {
