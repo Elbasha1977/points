@@ -83,16 +83,6 @@ body { background: linear-gradient(135deg, #dbeafe, #c7d2fe); padding: 20px; min
 .lws-field:hover .delete-field-btn { display: flex; }
 .lws-field input, .lws-field textarea { width: 100%; height: 100%; border: none; background: transparent; text-align: center; font-family: inherit; outline: none; pointer-events: none; }
 </style>
-
-<!-- PWA: Points -->
-<meta name="theme-color" content="#071B3A">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Points">
-<link rel="manifest" href="./manifest.webmanifest">
-<link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png">
-<link rel="icon" type="image/png" sizes="16x16" href="./favicon-16.png">
-<link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png">
 </head>
 <body>
 
@@ -1159,28 +1149,68 @@ async function loadStudentAnswers() {
         <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;border-bottom:1px solid #e2e8f0;padding:10px 4px;">
           <div style="flex:1;min-width:220px;"><b>السؤال ${index+1}</b><div style="white-space:pre-wrap;overflow-wrap:anywhere;color:#334155;">${safeAnswerText(value || '— بدون إجابة —')}</div>
           <small style="color:#64748b;">${hasKey ? 'الإجابة النموذجية: '+safeAnswerText(answerKey[fieldId]) : 'لا يوجد مفتاح إجابة لهذا السؤال'}</small></div>
-          <span style="font-weight:bold;color:${hasKey && norm(value) === norm(answerKey[fieldId]) ? '#047857' : hasKey ? '#b91c1c' : '#64748b'};">${hasKey ? (norm(value) === norm(answerKey[fieldId]) ? '✔ صحيح (+10)' : '✘ غير صحيح (0)') : 'غير مصحح تلقائيًا'}</span>
+          <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;">
+            <span style="font-weight:bold;color:${hasKey && norm(value) === norm(answerKey[fieldId]) ? '#047857' : hasKey ? '#b91c1c' : '#64748b'};">${hasKey ? (norm(value) === norm(answerKey[fieldId]) ? '✔ صحيح آليًا' : '✘ غير صحيح آليًا') : 'بحاجة لمراجعة المعلم'}</span>
+            <label style="font-size:13px;font-weight:bold;color:#334155;">درجة السؤال:
+              <input class="answer-question-grade" data-field-id="${safeAnswerText(fieldId)}" type="number" min="0" max="10" step="1" value="${hasKey && norm(value) === norm(answerKey[fieldId]) ? 10 : 0}" style="width:66px;padding:7px;border:2px solid #93c5fd;border-radius:8px;text-align:center;font-weight:bold;">
+              <span>/ 10</span>
+            </label>
+          </div>
         </div>`;
       }).join('');
       const card = document.createElement('section');
+      card.id = 'answer-card-' + doc.id;
       card.style.cssText = 'border:1px solid #cbd5e1;border-radius:12px;padding:16px;margin:0 0 14px;background:#fff;';
       card.innerHTML = `
         <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;background:#f1f5f9;padding:12px;border-radius:8px;">
           <div><h3 style="margin:0;color:#1e3a8a;">${safeAnswerText(a.studentName || 'طالب')}</h3>
           <div>الصف: ${safeAnswerText(a.studentClass || '—')} | الورقة: ${safeAnswerText(a.worksheetTitle || '—')}</div>
           <small>تاريخ الإرسال: ${a.submittedAt && a.submittedAt.toDate ? a.submittedAt.toDate().toLocaleString('ar-QA') : '—'}</small></div>
-          <div style="text-align:center;min-width:130px;"><div style="font-weight:bold;color:#047857;">التصحيح التلقائي</div><div id="score-${doc.id}" style="font-size:28px;font-weight:900;">${correctCount*10} / ${Object.keys(answerMap).length*10}</div><small>تمت مراجعة الإجابات النموذجية المتاحة: ${gradedCount} من ${Object.keys(answerMap).length} سؤال</small></div>
+          <div style="text-align:center;min-width:160px;">
+            <div style="font-weight:bold;color:#047857;">الدرجة المقترحة آليًا</div>
+            <div style="font-size:25px;font-weight:900;color:#1e3a8a;">${correctCount*10} / ${Object.keys(answerMap).length*10}</div>
+            <div style="margin-top:7px;padding:7px 10px;background:#fff7ed;border:1px solid #fdba74;border-radius:9px;">
+              <small style="font-weight:bold;color:#9a3412;">الدرجة النهائية بعد التعديل</small>
+              <div id="final-score-${doc.id}" style="font-size:27px;font-weight:900;color:#c2410c;">${correctCount*10} / ${Object.keys(answerMap).length*10}</div>
+            </div>
+            <small>تمت مراجعة الإجابات النموذجية المتاحة: ${gradedCount} من ${Object.keys(answerMap).length} سؤال</small>
+          </div>
         </div>
         <div style="margin-top:12px;">${answerRows}</div>
+        <div style="margin-top:12px;padding:12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;">
+          <div style="font-weight:bold;color:#1e40af;margin-bottom:6px;">✏️ يمكنك تعديل درجة كل سؤال قبل الاعتماد</div>
+          <small style="color:#475569;">غيّر الدرجة من 0 إلى 10 لكل سؤال. سيتم جمع الدرجات تلقائيًا، ولن تُرسل النقاط إلا بعد الضغط على زر الاعتماد.</small>
+        </div>
         <div style="display:flex;justify-content:flex-end;margin-top:12px;">
-          <button class="action-btn success" onclick="saveAutomaticStudentScore('${doc.id}',${JSON.stringify(correctFields).replace(/"/g,'&quot;')},${correctCount*10},${Object.keys(answerMap).length*10})">💾 حفظ الدرجة التلقائية</button>
+          <button class="action-btn success" onclick="saveAutomaticStudentScore('${doc.id}',${JSON.stringify(correctFields).replace(/"/g,'&quot;')},${Object.keys(answerMap).length*10})">✅ اعتماد الدرجة المعدلة وإرسال النقاط</button>
         </div>`;
       list.appendChild(card);
+      card.querySelectorAll('.answer-question-grade').forEach(input => {
+        input.addEventListener('input', () => recalculateStudentAnswerScore(doc.id));
+        input.addEventListener('change', () => recalculateStudentAnswerScore(doc.id));
+      });
     }
   } catch(e) {
     list.innerHTML = '<div class="error">تعذر قراءة إجابات الطلاب: '+safeAnswerText(e.message || e)+'</div>';
   }
 }
+function recalculateStudentAnswerScore(answerId) {
+  const card = document.getElementById('answer-card-' + answerId);
+  if (!card) return;
+  const inputs = card.querySelectorAll('.answer-question-grade');
+  let total = 0;
+  let max = inputs.length * 10;
+  inputs.forEach(input => {
+    let value = Number(input.value);
+    if (!Number.isFinite(value)) value = 0;
+    value = Math.max(0, Math.min(10, value));
+    input.value = value;
+    total += value;
+  });
+  const display = document.getElementById('final-score-' + answerId);
+  if (display) display.textContent = total + ' / ' + max;
+}
+
 async function awardHomeworkPointsToEmployee(answerId, score) {
   const answerSnap = await firestoreDb.collection('student_answers').doc(answerId).get();
   if (!answerSnap.exists) throw new Error('لم يتم العثور على سجل الإجابة.');
@@ -1260,56 +1290,103 @@ async function awardHomeworkPointsToEmployee(answerId, score) {
   return wasAwarded !== false;
 }
 
-async function saveAutomaticStudentScore(answerId, correctFields, score, maxScore) {
+async function saveAutomaticStudentScore(answerId, correctFields, maxScore) {
   try {
+    const card = document.getElementById('answer-card-' + answerId);
+    if (!card) throw new Error('تعذر العثور على بطاقة إجابة الطالب.');
+    const gradeInputs = Array.from(card.querySelectorAll('.answer-question-grade'));
+    const calculatedMax = gradeInputs.length * 10;
+    if (!gradeInputs.length) throw new Error('لا توجد درجات أسئلة قابلة للاعتماد.');
+    if (Number(maxScore) !== calculatedMax) maxScore = calculatedMax;
+
+    let score = 0;
+    gradeInputs.forEach(input => {
+      const value = Number(input.value);
+      if (!Number.isFinite(value) || value < 0 || value > 10) {
+        throw new Error('يجب أن تكون درجة كل سؤال بين 0 و10.');
+      }
+      score += value;
+    });
+    score = Math.round(score * 100) / 100;
+
     const answerRef = firestoreDb.collection('student_answers').doc(answerId);
     const existingSnap = await answerRef.get();
     if (!existingSnap.exists) throw new Error('لم يتم العثور على إجابة الطالب.');
     const existing = existingSnap.data() || {};
-    // الإجابة نفسها سبق اعتمادها: لا نعيد التصحيح أو الإضافة مرة أخرى.
+
     if (existing.pointsCredited === true) {
-      alert('ℹ️ سبق احتساب نقاط هذه الإجابة لهذا الطالب. لم تتم إضافة نقاط جديدة.');
+      alert('ℹ️ سبق إرسال نقاط هذه الإجابة إلى برنامج النقاط. لا يمكن إرسالها مرة أخرى حتى لا تتكرر النقاط.');
       return;
     }
+
+    const automaticScore = gradeInputs.reduce((sum, input) => {
+      const fieldId = input.getAttribute('data-field-id');
+      return sum + (correctFields.includes(fieldId) ? 10 : 0);
+    }, 0);
+    const wasAdjusted = score !== automaticScore;
+
+    const confirmText =
+      'مراجعة الدرجة قبل الإرسال\n\n' +
+      'الدرجة التلقائية: ' + automaticScore + ' / ' + maxScore + '\n' +
+      'الدرجة بعد التعديل: ' + score + ' / ' + maxScore + '\n\n' +
+      'هل تريد اعتماد هذه الدرجة وإرسال ' + score + ' نقطة إلى برنامج النقاط؟';
+    if (!confirm(confirmText)) return;
+
+    const saveButton = card.querySelector('button[onclick*="saveAutomaticStudentScore"]');
+    if (saveButton) {
+      saveButton.disabled = true;
+      saveButton.textContent = '⏳ جارٍ حفظ الدرجة وإرسال النقاط...';
+    }
+
     await answerRef.update({
-      correctFields: correctFields, score: score, maxScore: maxScore,
-      gradingMode: 'automatic', gradedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      correctFields: correctFields,
+      score: score,
+      maxScore: maxScore,
+      gradingMode: wasAdjusted ? 'manual_adjusted' : 'automatic',
+      scoreAdjustedByAdmin: wasAdjusted,
+      questionGrades: gradeInputs.reduce((obj, input) => {
+        obj[input.getAttribute('data-field-id')] = Number(input.value);
+        return obj;
+      }, {}),
+      gradedAt: firebase.firestore.FieldValue.serverTimestamp(),
       gradedBy: firebaseCurrentUser.uid
     });
+
     try {
       const credited = await awardHomeworkPointsToEmployee(answerId, score);
       if (credited === false) {
         await answerRef.update({pointsCredited:false, creditStatus:'duplicate', duplicateSubmission:true});
-        alert('⚠️ هذا الطالب حصل بالفعل على نقاط ورقة العمل نفسها. تم حفظ التصحيح، لكن لم تُضف نقاط مرة ثانية.');
+        alert('⚠️ هذا الطالب حصل بالفعل على نقاط ورقة العمل نفسها. تم حفظ الدرجة، لكن لم تُضف نقاط مرة ثانية.');
+        if (saveButton) { saveButton.disabled = true; saveButton.textContent = '⚠️ سبق احتساب هذا الواجب'; }
         return;
       }
       await answerRef.update({pointsCredited:true, creditStatus:'credited'});
       const creditedAnswer = (await answerRef.get()).data() || {};
       await firestoreDb.collection('homework_results').doc(answerId).set({
-        schoolId: creditedAnswer.schoolId || 'global', worksheetId: creditedAnswer.worksheetId || '',
-        worksheetTitle: creditedAnswer.worksheetTitle || '', studentName: creditedAnswer.studentName || '',
-        studentClass: creditedAnswer.studentClass || '', score: Number(score)||0, maxScore: Number(maxScore)||0,
-        awardedAt: firebase.firestore.FieldValue.serverTimestamp(), status: 'credited'
+        schoolId: creditedAnswer.schoolId || 'global',
+        worksheetId: creditedAnswer.worksheetId || '',
+        worksheetTitle: creditedAnswer.worksheetTitle || '',
+        studentName: creditedAnswer.studentName || '',
+        studentClass: creditedAnswer.studentClass || '',
+        score: score,
+        maxScore: Number(maxScore)||0,
+        awardedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        status: 'credited'
       }, {merge:true});
-      alert('✅ تم حفظ التصحيح وإضافة النقاط ونشر النتيجة للطالب: ' + score + ' نقطة من ' + maxScore + '.');
+      alert('✅ تم اعتماد الدرجة ' + score + ' من ' + maxScore + ' وإرسال ' + score + ' نقطة إلى برنامج النقاط بنجاح.');
+      if (saveButton) { saveButton.disabled = true; saveButton.textContent = '✅ تم الاعتماد وإرسال النقاط'; }
     } catch (awardError) {
-      alert('✅ تم حفظ الدرجة (' + score + '/' + maxScore + ')، لكن تعذرت إضافة النقاط إلى برنامج الموظفين. السبب: ' + awardError.message);
+      alert('تم حفظ الدرجة (' + score + '/' + maxScore + ')، لكن تعذّر إرسال النقاط إلى برنامج الموظفين. يمكنك المحاولة مرة أخرى. السبب: ' + awardError.message);
+      if (saveButton) { saveButton.disabled = false; saveButton.textContent = '🔁 إعادة محاولة إرسال النقاط'; }
     }
   } catch(e) {
-    alert('❌ تعذر حفظ الدرجة: ' + e.message + '\nقد تسمح قواعد Firestore الحالية بتعديل إجابات الطلاب للمدير العام فقط.');
+    alert('❌ تعذر اعتماد الدرجة: ' + e.message + '\nقد تسمح قواعد Firestore الحالية بتعديل إجابات الطلاب للمدير العام فقط.');
+    const card = document.getElementById('answer-card-' + answerId);
+    const saveButton = card && card.querySelector('button[onclick*="saveAutomaticStudentScore"]');
+    if (saveButton) { saveButton.disabled = false; saveButton.textContent = '✅ اعتماد الدرجة المعدلة وإرسال النقاط'; }
   }
 }
 
-</script>
-
-<script>
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', function () {
-    navigator.serviceWorker.register('./sw.js').catch(function (error) {
-      console.warn('تعذر تسجيل Service Worker:', error);
-    });
-  });
-}
 </script>
 </body>
 </html>
