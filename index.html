@@ -122,7 +122,7 @@ body { background: linear-gradient(135deg, #dbeafe, #c7d2fe); padding: 20px; min
         <button class="action-btn info" id="requestsBtn">👥 طلبات الموظفين</button>
         <button class="action-btn success" id="staffListBtn">👨‍🏫 الموظفون المعتمدون</button>
         <button class="action-btn warning" id="manualApproveBtn">➕ اعتماد يدوي</button>
-        <button class="action-btn info" id="openLicensesBtn">🔐 إدارة التراخيص</button>
+        <button class="action-btn info" id="customerLicensesBtn" style="background:linear-gradient(135deg,#0f766e,#14b8a6);">🏢 العملاء والتراخيص</button>
         <button class="action-btn danger" id="logoutBtn">🚪 تسجيل الخروج</button>
     </div>
 
@@ -139,21 +139,6 @@ body { background: linear-gradient(135deg, #dbeafe, #c7d2fe); padding: 20px; min
         <h2>📋 آخر الطلبات المعلقة</h2>
         <div id="quickRequestsList" class="loading">جارٍ التحميل...</div>
     </div>
-</div>
-
-
-<!-- لوحة إدارة تراخيص POINTS -->
-<div id="licensesModal" class="modal" style="z-index:10020;">
- <div class="modal-content" style="max-width:760px;direction:rtl;">
-  <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
-   <h2 style="color:#4338ca;">🔐 إدارة تراخيص النظام</h2>
-   <button type="button" id="closeLicensesBtn" class="action-btn danger" style="padding:9px 16px;">إغلاق ✕</button>
-  </div>
-  <p style="color:#64748b;margin:8px 0 18px;">تحكم مستقل في نسخة المدير ونسخة الموظفين. التغييرات تحفظ مركزيًا في Firebase.</p>
-  <div id="licensesStatus" style="padding:12px;border-radius:12px;background:#eff6ff;color:#1e40af;margin-bottom:15px;">جارٍ تحميل حالة التراخيص...</div>
-  <div id="licensesCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;"></div>
-  <div style="text-align:center;margin-top:18px;"><button type="button" id="refreshLicensesBtn" class="action-btn primary">🔄 تحديث الحالات</button></div>
- </div>
 </div>
 
 <!-- مودال طلبات الموظفين -->
@@ -224,6 +209,7 @@ body { background: linear-gradient(135deg, #dbeafe, #c7d2fe); padding: 20px; min
             <div style="text-align: center; margin-bottom: 20px;">
                 <button class="action-btn primary" onclick="showCreateWorksheet()" style="font-size: 18px;">➕ إنشاء ورقة جديدة</button>
             </div>
+            <div style="display:flex;justify-content:flex-end;margin:8px 0 12px;"><button id="migrateWorksheetKeysBtn" onclick="migrateLegacyWorksheetAnswerKeys()" style="background:#7c3aed;color:#fff;border:0;padding:10px 14px;border-radius:9px;font-weight:bold;cursor:pointer;">🔐 تأمين مفاتيح الإجابة القديمة</button></div>
             <div id="lwsList" class="loading">⏳ جارٍ تحميل الأوراق...</div>
         </div>
         <div id="lwsEditorView" style="display: none; flex: 1; flex-direction: column;">
@@ -285,6 +271,7 @@ let firebaseProfile = null;
 
 // ==================== التحقق المركزي من ترخيص نسخة المدير ====================
 const POINTS_APP_ID = 'points';
+const POINTS_APP_VERSION = '1.0.0';
 const POINTS_FUNCTIONS_REGION = 'us-central1';
 let pointsLicenseVerified = false;
 let pointsLicenseCheckPromise = null;
@@ -302,12 +289,24 @@ async function verifyPointsLicense() {
         const licenseFunction = firebase.app()
             .functions(POINTS_FUNCTIONS_REGION)
             .httpsCallable('checkAppLicense');
-        const response = await licenseFunction({ appId: POINTS_APP_ID });
+        const response = await licenseFunction({ appId: POINTS_APP_ID, appVersion: POINTS_APP_VERSION });
         const result = response && response.data ? response.data : {};
         if (result.success !== true) {
             throw new Error(result.message || 'الترخيص غير نشط أو غير صالح لهذه النسخة.');
         }
         pointsLicenseVerified = true;
+        window.POINTS_CUSTOMER_PLAN = result.plan || 'ADMIN';
+        window.POINTS_FEATURES = result.features || {};
+        window.POINTS_UPDATE_POLICY = result.updatePolicy || null;
+        if (result.updatePolicy && result.updatePolicy.requiresUpdate) {
+            const p = result.updatePolicy;
+            throw new Error('هذا الإصدار لم يعد مسموحًا. حدّث البرنامج إلى الإصدار ' + p.minVersion + '. ' + (p.message || '') + (p.downloadUrl ? ' رابط التحديث: ' + p.downloadUrl : ''));
+        }
+        if (result.updatePolicy && !window.__pointsOptionalUpdateShown) {
+            window.__pointsOptionalUpdateShown = true;
+            const p = result.updatePolicy;
+            alert('يتوفر تحديث جديد لنظام POINTS (' + p.version + '). ' + (p.message || '') + (p.downloadUrl ? '\nرابط التحديث: ' + p.downloadUrl : ''));
+        }
         return result;
     })();
 
@@ -334,7 +333,10 @@ function showLicenseError(error) {
 
 
 function isValidEmail(email) {
-    return email && email.toLowerCase().endsWith('@education.qa');
+    return !!email && /^\S+@\S+\.\S+$/.test(email);
+}
+function isAdminEmail(email) {
+    return !!email && email.toLowerCase().endsWith('@education.qa');
 }
 
 function showLogin() {
@@ -371,7 +373,7 @@ document.getElementById('loginBtn').addEventListener('click', async function() {
     const errorDiv = document.getElementById('loginError');
 
     if (!email) { errorDiv.textContent = '❌ الرجاء إدخال البريد الإلكتروني'; return; }
-    if (!isValidEmail(email)) { errorDiv.textContent = '❌ البريد يجب أن ينتهي بـ @education.qa'; return; }
+    if (!isAdminEmail(email)) { errorDiv.textContent = '❌ حساب المدير العام يجب أن ينتهي بـ @education.qa'; return; }
     if (!password) { errorDiv.textContent = '❌ الرجاء إدخال كلمة المرور'; return; }
 
     errorDiv.style.color = '#f59e0b';
@@ -562,7 +564,8 @@ async function loadAllRequests() {
                 docs.forEach(({ doc, data }) => {
                     const card = document.createElement('div'); card.className = 'request-card';
                     const classesList = Array.isArray(data.requestedClassIds) ? data.requestedClassIds.join('، ') : '—';
-                    card.innerHTML = '<div class="request-info"><b>📧 ' + (data.email || '—') + '</b><small>📚 ' + (data.subject || '—') + '</small><small>📖 الشعب: ' + classesList + '</small></div>' +
+                    const customerKind = data.customerType === 'individual' ? 'حساب فردي' : 'حساب مدرسة';
+                    card.innerHTML = '<div class="request-info"><b>📧 ' + (data.email || '—') + '</b><small>👤 ' + customerKind + '</small><small>📚 ' + (data.subject || '—') + '</small><small>📖 الشعب: ' + classesList + '</small></div>' +
                         '<div class="request-actions"><button class="approve-btn">✅ اعتماد</button><button class="reject-btn">❌ رفض</button></div>';
                     card.querySelector('.approve-btn').onclick = () => approveStaffRequest(doc, data, card);
                     card.querySelector('.reject-btn').onclick = () => rejectStaffRequest(doc, data, card);
@@ -579,40 +582,26 @@ async function approveStaffRequest(doc, data, card) {
     if (!confirm('اعتماد الموظف: ' + (data.email || '—') + '؟')) return;
     try {
         const approvedClasses = Array.isArray(data.requestedClassIds) ? data.requestedClassIds : [];
-        const tenantId = typeof data.schoolId === 'string' ? data.schoolId.trim() : '';
-        if (!tenantId || tenantId === 'main') throw new Error('طلب الموظف لا يحتوي على schoolId صالح.');
-
-        await usersRef.doc(data.uid || doc.id).set({
-            uid: data.uid || doc.id, email: data.email, role: 'staff', subject: data.subject || '',
-            schoolName: data.schoolName || '', schoolId: tenantId, country: data.country || '',
-            classIds: approvedClasses, active: true, approved: true,
-            approvedAt: firebase.firestore.FieldValue.serverTimestamp(), approvedBy: firebaseCurrentUser.uid
-        }, { merge: true });
-
-        await doc.ref.update({ status: 'approved', approvedClassIds: approvedClasses, reviewedAt: firebase.firestore.FieldValue.serverTimestamp(), reviewedBy: firebaseCurrentUser.uid });
-
-        const tenantRef = firestoreDb.collection('schoolData').doc(tenantId);
-        const tenantSnap = await tenantRef.get();
-        if (!tenantSnap.exists) {
-            const initialClasses = {};
-            approvedClasses.forEach(classId => { initialClasses[classId] = { students: [], photos: { photo1: null, photo2: null, photo3: null } }; });
-            await tenantRef.set({ schoolId: tenantId, schoolName: data.schoolName || '', country: data.country || '', allClassesData: initialClasses, createdAt: firebase.firestore.FieldValue.serverTimestamp(), createdBy: firebaseCurrentUser.uid }, { merge: true });
-        }
-        
-        const batch = firestoreDb.batch();
-        approvedClasses.forEach(classId => { batch.set(firestoreDb.collection('schoolClasses').doc(tenantId + '__' + classId), { schoolId: tenantId, classId: classId, classData: { students: [], photos: {} }, updatedAt: firebase.firestore.FieldValue.serverTimestamp(), updatedBy: firebaseCurrentUser.uid }, { merge: true }); });
-        await batch.commit();
-
-        if (card) card.innerHTML = '<div style="color:#15803d;font-weight:bold;padding:10px;">✅ تم الاعتماد</div>';
-        alert('✅ تم الاعتماد بنجاح');
+        if (!approvedClasses.length) throw new Error('لا توجد فصول مطلوبة لاعتمادها.');
+        const approveCall = firebase.app().functions('us-central1').httpsCallable('approveStaffRegistration');
+        const result = await approveCall({ requestId: data.uid || doc.id, approvedClassIds: approvedClasses });
+        const payload = result && result.data ? result.data : {};
+        if (!payload.licenseId) throw new Error('لم يُرجع الخادم معرّف مساحة العميل.');
+        // ينشئ الخادم مساحة العميل والفصول داخل معاملة الاعتماد وحجز المقعد.
+        if (card) card.innerHTML = '<div style="color:#15803d;font-weight:bold;padding:10px;">✅ تم الاعتماد وحجز مقعد للموظف: ' + (data.email || '') + '</div>';
+        alert('تم اعتماد الحساب وحجز مقعد وإنشاء مساحة العميل بنجاح.');
         loadStatistics(); loadQuickRequests();
-    } catch (e) { alert('❌ تعذر الاعتماد: ' + e.message); }
+    } catch (e) {
+        console.error('approveStaffRequest failed', e);
+        alert('❌ تعذر الاعتماد: ' + (e.message || e));
+    }
 }
 
 async function rejectStaffRequest(doc, data, card) {
     if (!confirm('رفض طلب الموظف؟')) return;
     try {
-        await doc.ref.update({ status: 'rejected', reviewedAt: firebase.firestore.FieldValue.serverTimestamp(), reviewedBy: firebaseCurrentUser.uid });
+        const rejectCall = firebase.app().functions('us-central1').httpsCallable('rejectStaffRegistration');
+        await rejectCall({ requestId: data.uid || doc.id });
         if (card) card.innerHTML = '<div style="color:#b91c1c;font-weight:bold;padding:10px;">❌ تم الرفض</div>';
         alert('✅ تم الرفض'); loadStatistics(); loadQuickRequests();
     } catch (e) { alert('❌ تعذر الرفض: ' + e.message); }
@@ -677,7 +666,7 @@ async function editStaff(uid, currentData) {
 async function toggleStaffActive(uid, currentData) {
     const isCurrentlyActive = currentData.active === true && currentData.approved === true;
     if (!confirm('هل تريد ' + (isCurrentlyActive ? 'إيقاف' : 'تفعيل') + ' هذا الحساب؟')) return;
-    try { await usersRef.doc(uid).update({ active: !isCurrentlyActive }); alert('✅ تم'); loadAllStaff(); loadStatistics(); } catch (e) { alert(e.message); }
+    try { const call=firebase.app().functions('us-central1').httpsCallable('setStaffAccountActive'); await call({uid:uid,active:!isCurrentlyActive}); alert('✅ تم تحديث حالة الموظف وتحديث عدد المقاعد في الترخيص.'); loadAllStaff(); loadStatistics(); } catch (e) { alert('تعذر تحديث الحساب: '+e.message); }
 }
 
 async function sendPasswordReset(email) {
@@ -687,7 +676,7 @@ async function sendPasswordReset(email) {
 
 async function deleteStaff(uid, email) {
     if (!confirm('⚠️ حذف حساب ' + email + ' نهائياً؟')) return;
-    try { await usersRef.doc(uid).delete(); alert('✅ تم الحذف'); loadAllStaff(); loadStatistics(); } catch (e) { alert(e.message); }
+    try { const call=firebase.app().functions('us-central1').httpsCallable('setStaffAccountActive'); await call({uid:uid,active:false}); alert('تم إيقاف الحساب وإعادة مقعده. احتفظنا بسجل الحساب للمراجعة.'); loadAllStaff(); loadStatistics(); } catch (e) { alert('تعذر إيقاف الحساب: '+e.message); }
 }
 
 // ==================== الاعتماد اليدوي ====================
@@ -710,8 +699,9 @@ document.getElementById('manualApproveSubmit').addEventListener('click', async f
             await approveStaffRequest(reqSnap.docs[0], reqSnap.docs[0].data(), null);
             msgEl.textContent = '✅ تم الاعتماد'; return;
         }
-        await snap.docs[0].ref.update({ active: true, approved: true });
-        msgEl.style.color = '#16a34a'; msgEl.textContent = '✅ تم التفعيل'; loadStatistics();
+        const activateCall = firebase.app().functions('us-central1').httpsCallable('setStaffAccountActive');
+        await activateCall({ uid: snap.docs[0].id, active: true });
+        msgEl.style.color = '#16a34a'; msgEl.textContent = '✅ تم التفعيل وتحديث عدد المقاعد إن كان الحساب مرتبطًا بترخيص تجاري'; loadStatistics();
     } catch (e) { msgEl.style.color = '#dc2626'; msgEl.textContent = '❌ ' + e.message; }
 });
 </script><script>
@@ -789,6 +779,25 @@ async function loadWorksheetsList() {
     } catch (e) { listEl.innerHTML = '<div class="error">تعذر التحميل: ' + e.message + '</div>'; }
 }
 
+
+async function migrateLegacyWorksheetAnswerKeys() {
+    if (!confirm('سيتم نقل مفاتيح الإجابة القديمة من أوراق العمل العامة إلى مجموعة خاصة، ثم حذفها من المستندات العامة. هل تريد المتابعة؟')) return;
+    const btn = document.getElementById('migrateWorksheetKeysBtn');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ جارٍ تأمين المفاتيح...'; }
+    try {
+        const migrate = firebase.app().functions('us-central1').httpsCallable('migrateLegacyWorksheetAnswerKeys');
+        const result = await migrate({});
+        alert('✅ اكتملت عملية التأمين. عدد المفاتيح المنقولة: ' + (result.data.migratedCount || 0) +
+              '\\nعدد الأوراق التي لم تحتج إلى نقل: ' + (result.data.skippedCount || 0));
+        loadWorksheetsList();
+    } catch (e) {
+        console.error(e);
+        alert('تعذر نقل مفاتيح الإجابة. لا تحذف أي بيانات يدويًا. التفاصيل: ' + (e.message || e));
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '🔐 تأمين مفاتيح الإجابة القديمة'; }
+    }
+}
+
 function copyStudentLink(docId) {
     // نأخذ رابط لوحة المدير الحالي ونضيف عليه ?student=true&id=...
     const baseUrl = window.location.href.split('?')[0];
@@ -800,7 +809,13 @@ function copyStudentLink(docId) {
 }
 async function deleteWorksheet(docId) {
     if (!confirm('هل أنت متأكد من حذف ورقة العمل؟')) return;
-    try { await firestoreDb.collection('worksheets').doc(docId).delete(); loadWorksheetsList(); } catch (e) { alert(e.message); }
+    try {
+        const batch = firestoreDb.batch();
+        batch.delete(firestoreDb.collection('worksheets').doc(docId));
+        batch.delete(firestoreDb.collection('worksheet_answer_keys').doc(docId));
+        await batch.commit();
+        loadWorksheetsList();
+    } catch (e) { alert(e.message); }
 }
 
 async function handleFileUpload(event) {
@@ -921,8 +936,32 @@ async function saveLiveWorksheet() {
         const fileRef = storageRef.child('worksheets/' + Date.now() + '_' + currentLwsImageFile.name);
         const uploadTask = await fileRef.put(currentLwsImageFile);
         currentLwsImageUrl = await uploadTask.ref.getDownloadURL();
-        await firestoreDb.collection('worksheets').add({ title: title, imageUrl: currentLwsImageUrl, fields: currentLwsFields, answerKey: answerKey, createdAt: firebase.firestore.FieldValue.serverTimestamp(), createdBy: firebaseCurrentUser.uid, schoolId: firebaseProfile ? (firebaseProfile.schoolId || 'global') : 'global' });
-        alert('✅ تم الحفظ بنجاح!'); showLwsList();
+        const worksheetRef = firestoreDb.collection('worksheets').doc();
+        const tenantId = firebaseProfile ? (firebaseProfile.licenseId || firebaseProfile.schoolId || 'global') : 'global';
+        const batch = firestoreDb.batch();
+
+        // مستند الطالب لا يحتوي أبدًا على مفتاح الإجابة.
+        batch.set(worksheetRef, {
+            title: title,
+            imageUrl: currentLwsImageUrl,
+            fields: currentLwsFields,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            createdBy: firebaseCurrentUser.uid,
+            schoolId: tenantId
+        });
+
+        // مفتاح الإجابة في مستند منفصل لا يقرأه الطالب.
+        batch.set(firestoreDb.collection('worksheet_answer_keys').doc(worksheetRef.id), {
+            worksheetId: worksheetRef.id,
+            schoolId: tenantId,
+            answerKey: answerKey,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            createdBy: firebaseCurrentUser.uid
+        });
+
+        await batch.commit();
+        alert('✅ تم حفظ الورقة ومفتاح الإجابة في مكانين منفصلين وآمنين.');
+        showLwsList();
     } catch (e) { alert('❌ خطأ: ' + e.message); } finally { btn.disabled = false; btn.textContent = '💾 حفظ الورقة'; }
 }
 </script>
@@ -1237,7 +1276,17 @@ async function loadStudentAnswers() {
       const answerMap = a.answers || {};
       const worksheetDoc = await firestoreDb.collection('worksheets').doc(a.worksheetId).get();
       const worksheetData = worksheetDoc.exists ? worksheetDoc.data() : {};
-      const answerKey = worksheetData.answerKey || {};
+      let answerKey = {};
+      try {
+        const privateKeyDoc = await firestoreDb.collection('worksheet_answer_keys').doc(a.worksheetId).get();
+        if (privateKeyDoc.exists) {
+          const privateKeyData = privateKeyDoc.data() || {};
+          const expectedTenant = worksheetData.schoolId || 'global';
+          if (privateKeyData.schoolId === expectedTenant) answerKey = privateKeyData.answerKey || {};
+        }
+      } catch (keyError) {
+        console.error('تعذر تحميل مفتاح الإجابة الخاص:', keyError);
+      }
       const norm = v => String(v == null ? '' : v).trim().toLowerCase().replace(/[\\s.,!?;:،؛]/g,'');
       let correctFields = [];
       let gradedCount = 0;
@@ -1492,30 +1541,230 @@ async function saveAutomaticStudentScore(answerId, correctFields, maxScore) {
 
 </script>
 
+<!-- إدارة العملاء والتراخيص التجارية -->
+<div id="customerLicensesModal" class="modal" style="z-index:1200;">
+ <div class="modal-content" style="max-width:1150px;max-height:92vh;">
+  <button class="modal-close" onclick="closeCustomerLicenses()">✕</button>
+  <h2 style="color:#0f766e;">🏢 إدارة العملاء والتراخيص التجارية</h2>
+  <div style="background:#f0fdfa;border:1px solid #99f6e4;border-radius:14px;padding:16px;margin-bottom:18px;">
+   <h3 style="color:#115e59;margin-bottom:12px;">إنشاء ترخيص جديد</h3>
+   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;">
+    <label>نوع العميل<select id="clCustomerType" style="width:100%;padding:11px;border:1px solid #cbd5e1;border-radius:9px;"><option value="school">مدرسة</option><option value="individual">فرد</option></select></label>
+    <label>اسم العميل<input id="clCustomerName" placeholder="اسم المدرسة أو العميل" style="width:100%;padding:11px;border:1px solid #cbd5e1;border-radius:9px;"></label>
+    <label>الدولة<input id="clCountry" value="قطر" style="width:100%;padding:11px;border:1px solid #cbd5e1;border-radius:9px;"></label>
+    <label id="clSchoolTypeWrap">نوع المدرسة<select id="clSchoolType" style="width:100%;padding:11px;border:1px solid #cbd5e1;border-radius:9px;"><option value="">اختر</option><option value="ministry">وزارة التعليم والتعليم العالي</option><option value="private">مدرسة خاصة</option><option value="other">أخرى</option></select></label>
+    <label>الباقة<select id="clPlan" style="width:100%;padding:11px;border:1px solid #cbd5e1;border-radius:9px;"><option>CLASSIC</option><option>PRO</option><option>VIP</option></select></label>
+    <label>عدد الحسابات<input id="clSeatLimit" type="number" min="1" max="5000" value="70" style="width:100%;padding:11px;border:1px solid #cbd5e1;border-radius:9px;"></label>
+    <label>تاريخ الانتهاء<input id="clExpiresAt" type="date" style="width:100%;padding:11px;border:1px solid #cbd5e1;border-radius:9px;"></label>
+   </div>
+   <div style="font-size:12px;color:#475569;margin-top:8px;">ترخيص الفرد مقعد واحد تلقائيًا. كود الاشتراك يُعرض مرة واحدة عند الإنشاء؛ احتفظ به وشاركه مع العميل.</div>
+   <button id="clCreateBtn" class="action-btn success" style="margin-top:12px;padding:12px 22px;">إنشاء الترخيص وكود الاشتراك</button>
+   <div id="clCreateMessage" style="margin-top:10px;font-weight:bold;"></div>
+   <div id="clNewCodeBox" style="display:none;background:white;border:2px dashed #0f766e;border-radius:12px;padding:14px;margin-top:12px;">
+    <b>كود الاشتراك — احفظه الآن:</b>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px;"><code id="clNewCode" style="font-size:20px;direction:ltr;color:#0f766e;font-weight:bold;"></code><button class="action-btn info" style="padding:8px 14px;" onclick="copyCustomerInviteCode()">نسخ الكود</button></div>
+   </div>
+  </div>
+
+
+  <div style="background:#faf5ff;border:1px solid #e9d5ff;border-radius:14px;padding:16px;margin-top:20px;">
+   <h3 style="color:#6b21a8;margin-bottom:12px;">🧩 كتالوج الميزات وتوزيعها على الباقات</h3>
+   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:9px;">
+    <label>مفتاح الميزة (إنجليزي)<input id="fmKey" placeholder="smartReports" style="width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:8px;direction:ltr;"></label>
+    <label>اسم الميزة بالعربية<input id="fmLabel" placeholder="التقارير الذكية" style="width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:8px;"></label>
+   </div>
+   <div style="display:flex;gap:12px;flex-wrap:wrap;margin:10px 0;"><label><input type="checkbox" id="fmClassic"> CLASSIC</label><label><input type="checkbox" id="fmPro" checked> PRO</label><label><input type="checkbox" id="fmVip" checked> VIP</label></div>
+   <button id="fmAddBtn" class="action-btn primary" style="padding:10px 16px;">إضافة الميزة وتحديد الباقات</button>
+   <button id="fmRefreshBtn" class="action-btn info" style="padding:10px 16px;">تحديث جدول الميزات</button>
+   <div id="fmStatus" style="margin:9px 0;font-weight:bold;"></div>
+   <div id="fmMatrix" style="overflow:auto;margin-top:10px;">جارٍ تحميل كتالوج الميزات...</div>
+   <small style="display:block;color:#64748b;margin-top:8px;">تغيير الباقة هنا يحدّث صلاحيات الترخيص عند التحقق التالي. إضافة مفتاح ميزة لا تكفي وحدها لإظهارها أو تعطيلها في كل أجزاء الواجهة؛ يجب ربط المفتاح بوظائف وعمليات الميزة داخل التطبيق.</small>
+  </div>
+
+  <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:14px;padding:16px;margin-top:20px;">
+   <h3 style="color:#9a3412;margin-bottom:10px;">📦 ترحيل مخزون الجوائز القديم</h3>
+   <p style="color:#7c2d12;font-size:13px;margin:0 0 12px;">ابدأ بالمعاينة. لن تتغير البيانات إلا عند الضغط على زر التنفيذ بعد مراجعة النتيجة. إذا اختلف العددان، سيتوقف النظام دون استبدال أي قيمة.</p>
+   <label style="display:block;">معرّف ترخيص العميل (tenantId)
+    <input id="rwMigrationTenantId" placeholder="أدخل معرّف الترخيص" style="width:100%;padding:11px;border:1px solid #cbd5e1;border-radius:9px;direction:ltr;margin-top:5px;">
+   </label>
+   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+    <button id="rwMigrationPreviewBtn" class="action-btn info" style="padding:10px 16px;">معاينة الترحيل</button>
+    <button id="rwMigrationCommitBtn" class="action-btn success" style="padding:10px 16px;">تنفيذ الترحيل بعد المراجعة</button>
+   </div>
+   <div id="rwMigrationResult" style="background:white;border:1px solid #e2e8f0;border-radius:9px;padding:12px;margin-top:12px;min-height:42px;">لم تبدأ أي عملية ترحيل.</div>
+   <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:18px;">
+    <h4 style="margin:0;color:#7c2d12;">📋 سجل عمليات الترحيل</h4>
+    <button id="rwMigrationLogsBtn" class="action-btn info" style="padding:8px 13px;">تحديث السجل</button>
+   </div>
+   <div style="overflow-x:auto;margin-top:9px;">
+    <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:700px;">
+     <thead><tr style="background:#ffedd5;">
+      <th style="padding:9px;border:1px solid #fed7aa;">التاريخ</th>
+      <th style="padding:9px;border:1px solid #fed7aa;">العميل</th>
+      <th style="padding:9px;border:1px solid #fed7aa;">العملية</th>
+      <th style="padding:9px;border:1px solid #fed7aa;">العدد القديم</th>
+      <th style="padding:9px;border:1px solid #fed7aa;">العدد الجديد</th>
+      <th style="padding:9px;border:1px solid #fed7aa;">النتيجة</th>
+      <th style="padding:9px;border:1px solid #fed7aa;">المدير المنفذ</th>
+     </tr></thead>
+     <tbody id="rwMigrationLogsBody"><tr><td colspan="7" style="padding:12px;text-align:center;">اضغط «تحديث السجل» لعرض العمليات.</td></tr></tbody>
+    </table>
+   </div>
+  </div>
+
+  <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:14px;padding:16px;margin-top:20px;">
+   <h3 style="color:#1d4ed8;margin-bottom:12px;">🚀 إدارة تحديثات البرنامج</h3>
+   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;">
+    <label>نسخة البرنامج<select id="upAppId" style="width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:8px;"><option value="points">نسخة المدير</option><option value="points-staff">نسخة الموظفين</option></select></label>
+    <label>رقم الإصدار<input id="upVersion" placeholder="2.1.0" style="width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:8px;direction:ltr;"></label>
+    <label>أقل إصدار مسموح<input id="upMinVersion" placeholder="2.0.0" style="width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:8px;direction:ltr;"></label>
+    <label>رابط التحديث<input id="upDownloadUrl" placeholder="https://..." style="width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:8px;direction:ltr;"></label>
+   </div>
+   <label style="display:block;margin-top:10px;">رسالة التحديث<textarea id="upMessage" rows="2" placeholder="ما الجديد في هذا الإصدار؟" style="width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:8px;"></textarea></label>
+   <div style="display:flex;gap:12px;flex-wrap:wrap;margin:10px 0;"><label><input type="checkbox" id="upPlanClassic" checked> CLASSIC</label><label><input type="checkbox" id="upPlanPro" checked> PRO</label><label><input type="checkbox" id="upPlanVip" checked> VIP</label><label><input type="checkbox" id="upForce"> تحديث إجباري</label><label><input type="checkbox" id="upEnabled" checked> تفعيل التوزيع</label></div>
+   <label style="display:block;margin-bottom:10px;">معرّفات عملاء محددة (اختياري، مفصولة بفاصلة؛ اتركها فارغة لاستهداف الباقات المختارة)</label>
+   <input id="upTargetLicenses" placeholder="licenseId1, licenseId2" style="width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:8px;direction:ltr;">
+   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;"><button id="upPublishBtn" class="action-btn primary" style="padding:10px 16px;">حفظ سياسة التحديث</button><button id="upPauseBtn" class="action-btn danger" style="padding:10px 16px;">إيقاف توزيع هذا التحديث</button><button id="upRollbackBtn" class="action-btn warning" style="padding:10px 16px;">الرجوع إلى إصدار سابق</button><button id="upRefreshBtn" class="action-btn info" style="padding:10px 16px;">عرض السياسات الحالية</button></div>
+   <div id="upMessageStatus" style="margin-top:10px;font-weight:bold;"></div><div id="upCurrentList" style="margin-top:10px;"></div>
+   <small style="display:block;color:#64748b;margin-top:8px;">هذه السياسة تحدد من تصله رسالة التحديث في التحقق من الترخيص. رفع ملفات الإصدار إلى GitHub ونشرها يظل خطوة منفصلة، ولن يتم تحديث الملفات تلقائيًا بمجرد حفظ السياسة.</small>
+  </div>
+
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;"><h3 style="color:#334155;">العملاء الحاليون</h3><button class="action-btn primary" style="padding:10px 18px;" onclick="loadCustomerLicenses()">🔄 تحديث القائمة</button></div>
+  <div id="customerLicensesList" style="margin-top:12px;max-height:45vh;overflow:auto;"><div class="loading">جارٍ تحميل التراخيص...</div></div>
+ </div>
+</div>
+
+
 <script>
-// ==================== إدارة تراخيص النسختين عبر Cloud Function آمنة ====================
-(function(){
- const modal=document.getElementById('licensesModal');
- const status=document.getElementById('licensesStatus');
- const cards=document.getElementById('licensesCards');
- const call=()=>firebase.app().functions('us-central1').httpsCallable('manageAppLicenses');
- const ids=[{id:'points',name:'نسخة المدير'},{id:'points-staff',name:'نسخة الموظفين'}];
- function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
- function cardHtml(x){const exp=x.expiresAt||'';const enabled=x.enabled===true;return `<div style="background:#fff;border:1px solid #dbeafe;border-radius:16px;padding:17px;box-shadow:0 3px 12px #0000000d;">
- <h3 style="color:#1e3a8a;margin-bottom:12px;">${x.id==='points'?'👨‍💼':'👩‍🏫'} ${x.name}</h3>
- <div style="font-weight:bold;margin-bottom:12px;color:${enabled?'#15803d':'#dc2626'};">${enabled?'● الترخيص مفعّل':'● الترخيص متوقف'}</div>
- <label style="display:flex;align-items:center;gap:9px;margin-bottom:14px;font-weight:bold;"><input type="checkbox" id="lic-enabled-${x.id}" ${enabled?'checked':''}> تفعيل الترخيص</label>
- <label style="display:block;font-weight:bold;margin-bottom:6px;">تاريخ انتهاء الترخيص</label>
- <input type="date" id="lic-exp-${x.id}" value="${esc(exp)}" style="width:100%;padding:11px;border:1px solid #cbd5e1;border-radius:9px;margin-bottom:14px;">
- <button type="button" class="action-btn success" style="width:100%;padding:12px;" onclick="saveOneAppLicense('${x.id}')">💾 حفظ ترخيص ${x.id==='points'?'المدير':'الموظفين'}</button>
- </div>`;}
- async function load(){status.textContent='⏳ جارٍ قراءة التراخيص...';status.style.background='#eff6ff';status.style.color='#1e40af';cards.innerHTML='';try{const r=await call()({action:'get'});const list=r.data.licenses||[];cards.innerHTML=ids.map(d=>{const x=list.find(a=>a.id===d.id)||{id:d.id,enabled:false,expiresAt:''};return cardHtml({...x,name:d.name});}).join('');status.textContent='✅ تم تحميل حالتي الترخيص من الخادم.';status.style.background='#dcfce7';status.style.color='#166534';}catch(e){status.textContent='❌ تعذر تحميل التراخيص: '+(e.message||e);status.style.background='#fee2e2';status.style.color='#991b1b';}}
- window.saveOneAppLicense=async function(id){if(!firebaseCurrentUser||firebaseCurrentUser.uid!==ADMIN_UID){alert('غير مصرح لك بإدارة التراخيص.');return;}const enabled=document.getElementById('lic-enabled-'+id).checked;const expiresAt=document.getElementById('lic-exp-'+id).value||null;if(expiresAt&&!/^\d{4}-\d{2}-\d{2}$/.test(expiresAt)){alert('تاريخ الانتهاء غير صالح.');return;}if(!confirm('تأكيد حفظ ترخيص '+(id==='points'?'نسخة المدير':'نسخة الموظفين')+'؟'))return;status.textContent='⏳ جارٍ حفظ التغييرات...';try{await call()({action:'update',appId:id,enabled,expiresAt});status.textContent='✅ تم حفظ الترخيص بنجاح.';status.style.background='#dcfce7';status.style.color='#166534';await load();}catch(e){status.textContent='❌ فشل الحفظ: '+(e.message||e);status.style.background='#fee2e2';status.style.color='#991b1b';}};
- document.getElementById('openLicensesBtn').addEventListener('click',()=>{modal.style.display='flex';load();});
- document.getElementById('closeLicensesBtn').addEventListener('click',()=>modal.style.display='none');
- document.getElementById('refreshLicensesBtn').addEventListener('click',load);
-})();
+// ==================== سياسات تحديث الإصدارات ====================
+function appUpdateCallable(){if(!firebaseAuth.currentUser)throw new Error('يجب تسجيل الدخول أولاً.');return firebase.app().functions('us-central1').httpsCallable('manageAppUpdates');}
+document.getElementById('upPublishBtn').addEventListener('click',async()=>{
+ const status=document.getElementById('upMessageStatus');
+ const targetPlans=[];if(document.getElementById('upPlanClassic').checked)targetPlans.push('CLASSIC');if(document.getElementById('upPlanPro').checked)targetPlans.push('PRO');if(document.getElementById('upPlanVip').checked)targetPlans.push('VIP');
+ const targetLicenseIds=document.getElementById('upTargetLicenses').value.split(',').map(x=>x.trim()).filter(Boolean);
+ const payload={action:'publish',appId:document.getElementById('upAppId').value,version:document.getElementById('upVersion').value.trim(),minVersion:document.getElementById('upMinVersion').value.trim(),downloadUrl:document.getElementById('upDownloadUrl').value.trim(),message:document.getElementById('upMessage').value.trim(),targetPlans,targetLicenseIds,forceUpdate:document.getElementById('upForce').checked,enabled:document.getElementById('upEnabled').checked};
+ if(!targetPlans.length&&!targetLicenseIds.length){status.style.color='#b91c1c';status.textContent='اختر باقة واحدة على الأقل أو أدخل معرّفات عملاء.';return;}
+ status.style.color='#475569';status.textContent='جارٍ حفظ سياسة التحديث...';
+ try{await appUpdateCallable()(payload);status.style.color='#15803d';status.textContent='تم حفظ سياسة التحديث. تذكّر أن نشر ملفات HTML على GitHub خطوة منفصلة.';loadAppUpdatePolicies();}catch(e){status.style.color='#b91c1c';status.textContent='تعذر الحفظ: '+e.message;}
+});
+
+document.getElementById('upRollbackBtn').addEventListener('click',async()=>{
+ const appId=document.getElementById('upAppId').value;
+ const targetVersion=prompt('أدخل رقم الإصدار السابق الذي تريد استعادته (مثال 2.0.0):');
+ if(targetVersion===null)return;
+ if(!/^\\d+\\.\\d+\\.\\d+$/.test(targetVersion.trim())){alert('صيغة الإصدار غير صحيحة.');return;}
+ if(!confirm('سيتم تغيير سياسة التحديث إلى الإصدار '+targetVersion+' للنسخة المحددة. هل تريد المتابعة؟'))return;
+ const status=document.getElementById('upMessageStatus');
+ status.textContent='جارٍ استعادة سياسة الإصدار السابق...';
+ try{await appUpdateCallable()({action:'rollback',appId,targetVersion:targetVersion.trim()});status.textContent='تمت استعادة سياسة الإصدار '+targetVersion+'.';loadAppUpdatePolicies();}
+ catch(e){status.textContent='تعذر الرجوع: '+e.message;}
+});
+document.getElementById('upPauseBtn').addEventListener('click',async()=>{const appId=document.getElementById('upAppId').value;if(!confirm('إيقاف سياسة التحديث للنسخة المحددة؟'))return;try{await appUpdateCallable()({action:'pause',appId});alert('تم إيقاف توزيع السياسة.');loadAppUpdatePolicies();}catch(e){alert('تعذر الإيقاف: '+e.message);}});
+document.getElementById('upRefreshBtn').addEventListener('click',loadAppUpdatePolicies);
+async function loadAppUpdatePolicies(){const box=document.getElementById('upCurrentList');box.innerHTML='جارٍ تحميل سياسات التحديث...';try{const res=await appUpdateCallable()({action:'list'});const rows=(res.data&&res.data.updates)||[];box.innerHTML=rows.length?rows.map(x=>`<div style="background:white;border:1px solid #bfdbfe;border-radius:10px;padding:10px;margin:7px 0;"><b>${x.appId==='points'?'نسخة المدير':'نسخة الموظفين'} — ${escapeLicenseText(x.version||'—')}</b><div style="font-size:13px;color:#475569;">${x.enabled?'التوزيع فعال':'التوزيع متوقف'} · ${x.forceUpdate?'إجباري':'اختياري'} · الباقات: ${escapeLicenseText((x.targetPlans||[]).join(', '))}</div></div>`).join(''):'لا توجد سياسات تحديث.';}catch(e){box.textContent='تعذر تحميل السياسات: '+e.message;}}
 </script>
 
+
+<script>
+// ==================== كتالوج الميزات والباقات ====================
+function planFeatureCallable(){if(!firebaseAuth.currentUser)throw new Error('يجب تسجيل الدخول أولاً.');return firebase.app().functions('us-central1').httpsCallable('managePlanFeatures');}
+document.getElementById('fmAddBtn').addEventListener('click',async()=>{
+ const status=document.getElementById('fmStatus');const plans=[];if(document.getElementById('fmClassic').checked)plans.push('CLASSIC');if(document.getElementById('fmPro').checked)plans.push('PRO');if(document.getElementById('fmVip').checked)plans.push('VIP');
+ const payload={action:'addFeature',key:document.getElementById('fmKey').value.trim(),label:document.getElementById('fmLabel').value.trim(),plans};
+ status.textContent='جارٍ إضافة الميزة...';try{await planFeatureCallable()(payload);status.style.color='#15803d';status.textContent='تمت إضافة الميزة إلى الكتالوج.';document.getElementById('fmKey').value='';document.getElementById('fmLabel').value='';loadPlanFeatureMatrix();}catch(e){status.style.color='#b91c1c';status.textContent='تعذر الإضافة: '+e.message;}
+});
+document.getElementById('fmRefreshBtn').addEventListener('click',loadPlanFeatureMatrix);
+async function loadPlanFeatureMatrix(){const box=document.getElementById('fmMatrix');box.innerHTML='جارٍ تحميل الميزات...';try{const res=await planFeatureCallable()({action:'list'});const rows=(res.data&&res.data.features)||[];if(!rows.length){box.innerHTML='لا توجد ميزات مسجلة.';return;}let html='<table style="width:100%;border-collapse:collapse;background:white;"><thead><tr><th style="padding:9px;border-bottom:1px solid #ddd;text-align:right;">الميزة</th><th>CLASSIC</th><th>PRO</th><th>VIP</th></tr></thead><tbody>';rows.forEach(r=>{html+='<tr><td style="padding:9px;border-bottom:1px solid #eee;">'+escapeLicenseText(r.label||r.key)+'<div style="font-size:11px;color:#64748b;direction:ltr;text-align:right;">'+escapeLicenseText(r.key)+'</div></td>';[['CLASSIC','classic'],['PRO','pro'],['VIP','vip']].forEach(([plan,field])=>{html+='<td style="text-align:center;border-bottom:1px solid #eee;padding:8px;"><input type="checkbox" data-feature="'+escapeLicenseText(r.key)+'" data-plan="'+plan+'" '+(r[field]?'checked':'')+'></td>';});html+='</tr>';});html+='</tbody></table>';box.innerHTML=html;box.querySelectorAll('input[data-feature]').forEach(ch=>ch.addEventListener('change',async()=>{ch.disabled=true;try{await planFeatureCallable()({action:'toggle',key:ch.dataset.feature,plan:ch.dataset.plan,enabled:ch.checked});}catch(e){ch.checked=!ch.checked;alert('تعذر تحديث الميزة: '+e.message);}finally{ch.disabled=false;}}));}catch(e){box.innerHTML='تعذر تحميل الميزات: '+escapeLicenseText(e.message);}}
+</script>
+
+
+<script>
+// ==================== إدارة العملاء والتراخيص التجارية ====================
+function customerLicenseCallable(){if(!firebaseAuth.currentUser)throw new Error('يجب تسجيل الدخول أولاً.');return firebase.app().functions('us-central1').httpsCallable('manageCustomerLicenses');}
+function openCustomerLicenses(){if(!firebaseCurrentUser||firebaseCurrentUser.uid!==ADMIN_UID){alert('هذه الشاشة متاحة للمدير العام فقط.');return;}document.getElementById('customerLicensesModal').style.display='flex';loadCustomerLicenses();loadPlanFeatureMatrix();loadAppUpdatePolicies();}
+function closeCustomerLicenses(){document.getElementById('customerLicensesModal').style.display='none';}
+document.getElementById('customerLicensesBtn').addEventListener('click',openCustomerLicenses);
+document.getElementById('clCustomerType').addEventListener('change',function(){const individual=this.value==='individual';document.getElementById('clSchoolTypeWrap').style.display=individual?'none':'block';document.getElementById('clSeatLimit').disabled=individual;if(individual)document.getElementById('clSeatLimit').value=1;else if(Number(document.getElementById('clSeatLimit').value)<2)document.getElementById('clSeatLimit').value=70;});
+document.getElementById('clCreateBtn').addEventListener('click',async function(){
+ const msg=document.getElementById('clCreateMessage'),btn=this;const customerType=document.getElementById('clCustomerType').value,customerName=document.getElementById('clCustomerName').value.trim(),country=document.getElementById('clCountry').value.trim(),schoolType=document.getElementById('clSchoolType').value,plan=document.getElementById('clPlan').value,seatLimit=customerType==='individual'?1:Number(document.getElementById('clSeatLimit').value),expiresAt=document.getElementById('clExpiresAt').value||null;
+ if(!customerName||!country){msg.style.color='#dc2626';msg.textContent='أدخل اسم العميل والدولة.';return;}if(customerType==='school'&&!schoolType){msg.style.color='#dc2626';msg.textContent='اختر نوع المدرسة.';return;}if(!Number.isInteger(seatLimit)||seatLimit<1){msg.style.color='#dc2626';msg.textContent='عدد الحسابات غير صحيح.';return;}
+ btn.disabled=true;btn.textContent='جارٍ إنشاء الترخيص...';msg.style.color='#475569';msg.textContent='يرجى الانتظار...';
+ try{const res=await customerLicenseCallable()({action:'create',customerType,customerName,country,schoolType,plan,seatLimit,expiresAt});const data=res.data||{};document.getElementById('clNewCode').textContent=data.inviteCode||'';document.getElementById('clNewCodeBox').style.display='block';msg.style.color='#15803d';msg.textContent='تم إنشاء الترخيص. احفظ كود الاشتراك الآن؛ لن يظهر مرة أخرى.';document.getElementById('clCustomerName').value='';await loadCustomerLicenses();}
+ catch(e){console.error(e);msg.style.color='#dc2626';msg.textContent='تعذر إنشاء الترخيص: '+(e.message||e);}finally{btn.disabled=false;btn.textContent='إنشاء الترخيص وكود الاشتراك';}
+});
+function copyCustomerInviteCode(){const code=document.getElementById('clNewCode').textContent;if(!code)return;if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(code).then(()=>alert('تم نسخ كود الاشتراك.')).catch(()=>prompt('انسخ الكود:',code));else prompt('انسخ الكود:',code);}
+function escapeLicenseText(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function safeLicenseDate(v){if(!v)return '';if(typeof v==='string')return v;if(v.seconds)return new Date(v.seconds*1000).toLocaleDateString('en-CA');return '';}
+async function loadCustomerLicenses(){
+ const box=document.getElementById('customerLicensesList');box.innerHTML='<div class="loading">جارٍ تحميل التراخيص...</div>';
+ try{const res=await customerLicenseCallable()({action:'list'}),rows=(res.data&&res.data.licenses)||[];if(!rows.length){box.innerHTML='<div class="empty-message">لا توجد تراخيص عملاء حتى الآن.</div>';return;}box.innerHTML='';
+ rows.forEach(item=>{const active=item.enabled===true,used=Number(item.activeSeats||0),limit=Number(item.seatLimit||0),card=document.createElement('div');card.style.cssText='border:1px solid #cbd5e1;border-radius:13px;padding:14px;margin:10px 0;background:#fff;';
+ const features=Object.entries(item.features||{}).map(([k,v])=>k+': '+(v?'مفعلة':'مغلقة')).join(' · ');
+ card.innerHTML=`<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;"><div><b style="font-size:17px;color:#0f766e;">${escapeLicenseText(item.customerName||'عميل')}</b><div style="font-size:13px;color:#475569;margin-top:5px;">${item.customerType==='individual'?'فرد':'مدرسة'} · ${escapeLicenseText(item.country||'')} · ${escapeLicenseText(item.plan||'CLASSIC')}</div></div><span style="background:${active?'#dcfce7':'#fee2e2'};color:${active?'#166534':'#991b1b'};padding:5px 12px;border-radius:20px;height:max-content;">${active?'فعال':'متوقف'}</span></div><div style="display:flex;gap:16px;flex-wrap:wrap;margin:12px 0;font-size:14px;"><span>المقاعد: <b>${used} / ${limit}</b></span><span>الانتهاء: <b>${safeLicenseDate(item.expiresAt)||'بدون تاريخ'}</b></span><span>المعرّف: <code>${escapeLicenseText(item.id)}</code></span></div><div style="font-size:12px;color:#64748b;margin-bottom:10px;">${escapeLicenseText(features)}</div><div style="display:flex;gap:7px;flex-wrap:wrap;"><button class="action-btn ${active?'danger':'success'}" style="padding:8px 13px;font-size:13px;" data-toggle>${active?'إيقاف الترخيص':'تفعيل الترخيص'}</button><button class="action-btn primary" style="padding:8px 13px;font-size:13px;" data-edit>تعديل الباقة والمقاعد والتاريخ</button><button class="action-btn info" style="padding:8px 13px;font-size:13px;" data-features>استثناءات الميزات</button></div>`;
+ card.querySelector('[data-toggle]').onclick=()=>updateCustomerLicense(item.id,{enabled:!active},active?'إيقاف هذا الترخيص؟':'تفعيل هذا الترخيص؟');card.querySelector('[data-edit]').onclick=()=>editCustomerLicense(item);card.querySelector('[data-features]').onclick=()=>editCustomerFeatures(item);box.appendChild(card);
+ });
+ }catch(e){console.error(e);box.innerHTML='<div style="color:#b91c1c;padding:15px;">تعذر تحميل التراخيص: '+escapeLicenseText(e.message||e)+'</div>';}
+}
+async function updateCustomerLicense(licenseId,patch,confirmText){if(!confirm(confirmText))return;try{await customerLicenseCallable()({action:'update',licenseId,...patch});alert('تم تحديث الترخيص.');loadCustomerLicenses();}catch(e){alert('تعذر التحديث: '+e.message);}}
+async function editCustomerLicense(item){const plan=prompt('الباقة: CLASSIC أو PRO أو VIP',item.plan||'CLASSIC');if(plan===null)return;const seats=prompt('عدد الحسابات المسموح بها (لا يقل عن المستخدمين النشطين)',String(item.seatLimit||1));if(seats===null)return;const expiry=prompt('تاريخ الانتهاء YYYY-MM-DD أو اتركه فارغًا',safeLicenseDate(item.expiresAt));if(expiry===null)return;await updateCustomerLicense(item.id,{plan:plan.trim().toUpperCase(),seatLimit:Number(seats),expiresAt:expiry.trim()||null},'حفظ تعديلات الترخيص؟');}
+async function editCustomerFeatures(item){try{const res=await planFeatureCallable()({action:'list'}),rows=(res.data&&res.data.features)||[],current=item.featureOverrides||{},next={};for(const f of rows){const key=f.key,state=Object.prototype.hasOwnProperty.call(current,key)?current[key]:null,answer=prompt((f.label||key)+'\nالقيمة الحالية: '+(state===null?'حسب الباقة':state?'مفعلة استثنائيًا':'موقوفة استثنائيًا')+'\nاكتب on أو off أو default.',state===null?'default':state?'on':'off');if(answer===null)return;const a=answer.trim().toLowerCase();if(a==='on')next[key]=true;else if(a==='off')next[key]=false;else if(a!=='default'){alert('قيمة غير صحيحة.');return;}}await customerLicenseCallable()({action:'update',licenseId:item.id,featureOverrides:next});alert('تم حفظ استثناءات الميزات.');loadCustomerLicenses();}catch(e){alert('تعذر حفظ الميزات: '+e.message);}}
+</script>
+
+
+<script>
+// ==================== ترحيل مخزون الجوائز القديم ====================
+function rewardsMigrationCallable(){
+ if(!firebaseAuth.currentUser)throw new Error('يجب تسجيل الدخول أولاً.');
+ if(!firebaseCurrentUser||firebaseCurrentUser.uid!==ADMIN_UID)throw new Error('هذه العملية متاحة للمدير العام فقط.');
+ return firebase.app().functions('us-central1').httpsCallable('migrateLegacyRewardsInventory');
+}
+async function runRewardsInventoryMigration(commit){
+ const tenantId=document.getElementById('rwMigrationTenantId').value.trim();
+ const box=document.getElementById('rwMigrationResult');
+ if(!tenantId){box.textContent='أدخل معرّف ترخيص العميل أولاً.';return;}
+ const buttons=[document.getElementById('rwMigrationPreviewBtn'),document.getElementById('rwMigrationCommitBtn')];
+ buttons.forEach(b=>b.disabled=true);
+ box.textContent=commit?'جارٍ تنفيذ الترحيل والتحقق...':'جارٍ معاينة البيانات دون تعديل...';
+ try{
+  const response=await rewardsMigrationCallable()({tenantId,commit});
+  const result=response.data||{};
+  const labels={would_migrate:'جاهز للترحيل',migrated:'تم الترحيل',already_migrated:'تم الترحيل سابقًا والقيم متطابقة',conflict_different_counts:'تعارض: العددان مختلفان'};
+  box.innerHTML='<b>'+escapeLicenseText(labels[result.status]||result.status||'اكتملت العملية')+'</b>'+
+   '<div style="margin-top:7px;">العدد القديم: <b>'+escapeLicenseText(String(result.oldCount??'—'))+'</b></div>'+
+   '<div>العدد الجديد: <b>'+escapeLicenseText(String(result.newCount??'—'))+'</b></div>'+
+   '<div style="font-size:12px;color:#64748b;margin-top:6px;">'+escapeLicenseText(result.message||'')+'</div>'+
+   '<div style="font-size:11px;color:#64748b;direction:ltr;margin-top:5px;">'+escapeLicenseText(result.targetPath||'')+'</div>';
+  box.style.borderColor=result.status==='conflict_different_counts'?'#fca5a5':'#86efac';
+ }catch(error){box.textContent='تعذر تنفيذ العملية: '+(error.message||error);box.style.borderColor='#fca5a5';}
+ finally{buttons.forEach(b=>b.disabled=false);}
+}
+
+async function loadRewardsInventoryMigrationLogs(){
+ const body=document.getElementById('rwMigrationLogsBody');
+ const btn=document.getElementById('rwMigrationLogsBtn');
+ const tenantId=document.getElementById('rwMigrationTenantId').value.trim();
+ btn.disabled=true;body.innerHTML='<tr><td colspan="7" style="padding:12px;text-align:center;">جارٍ تحميل السجل...</td></tr>';
+ try{
+  const fn=firebase.app().functions('us-central1').httpsCallable('listRewardsInventoryMigrationLogs');
+  const response=await fn({tenantId,limit:50});
+  const logs=(response.data&&response.data.logs)||[];
+  if(!logs.length){body.innerHTML='<tr><td colspan="7" style="padding:12px;text-align:center;">لا توجد عمليات مسجلة لهذا العميل.</td></tr>';return;}
+  const statusNames={would_migrate:'معاينة جاهزة',migrated:'تم الترحيل',already_migrated:'مطابق مسبقًا',conflict_different_counts:'تعارض'};
+  body.innerHTML=logs.map(log=>{
+   const date=log.createdAt?new Date(log.createdAt).toLocaleString('ar-QA'):'—';
+   const action=log.action==='commit'?'تنفيذ':'معاينة';
+   const cells=[date,log.tenantId,action,log.oldCount??'—',log.newCount??'—',statusNames[log.status]||log.status,log.performedByName||log.performedByEmail||log.performedBy||'—'];
+   return '<tr>'+cells.map(value=>'<td style="padding:8px;border:1px solid #e2e8f0;">'+escapeLicenseText(String(value))+'</td>').join('')+'</tr>';
+  }).join('');
+ }catch(error){body.innerHTML='<tr><td colspan="7" style="padding:12px;color:#b91c1c;">تعذر تحميل السجل: '+escapeLicenseText(error.message||String(error))+'</td></tr>';}
+ finally{btn.disabled=false;}
+}
+document.getElementById('rwMigrationLogsBtn').addEventListener('click',loadRewardsInventoryMigrationLogs);
+document.getElementById('rwMigrationPreviewBtn').addEventListener('click',()=>runRewardsInventoryMigration(false));
+document.getElementById('rwMigrationCommitBtn').addEventListener('click',()=>{
+ const confirmed=confirm('هل راجعت نتيجة المعاينة وتأكدت من صحة مخزون الجوائز؟ سيتم نسخ العدد القديم إلى المسار الجديد، ولن يتم حذف المصدر القديم.');
+ if(confirmed)runRewardsInventoryMigration(true);
+});
+</script>
 </body>
 </html>
