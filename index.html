@@ -122,6 +122,7 @@ body { background: linear-gradient(135deg, #dbeafe, #c7d2fe); padding: 20px; min
         <button class="action-btn info" id="requestsBtn">👥 طلبات الموظفين</button>
         <button class="action-btn success" id="staffListBtn">👨‍🏫 الموظفون المعتمدون</button>
         <button class="action-btn warning" id="manualApproveBtn">➕ اعتماد يدوي</button>
+        <button class="action-btn info" id="openLicensesBtn">🔐 إدارة التراخيص</button>
         <button class="action-btn danger" id="logoutBtn">🚪 تسجيل الخروج</button>
     </div>
 
@@ -138,6 +139,21 @@ body { background: linear-gradient(135deg, #dbeafe, #c7d2fe); padding: 20px; min
         <h2>📋 آخر الطلبات المعلقة</h2>
         <div id="quickRequestsList" class="loading">جارٍ التحميل...</div>
     </div>
+</div>
+
+
+<!-- لوحة إدارة تراخيص POINTS -->
+<div id="licensesModal" class="modal" style="z-index:10020;">
+ <div class="modal-content" style="max-width:760px;direction:rtl;">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+   <h2 style="color:#4338ca;">🔐 إدارة تراخيص النظام</h2>
+   <button type="button" id="closeLicensesBtn" class="action-btn danger" style="padding:9px 16px;">إغلاق ✕</button>
+  </div>
+  <p style="color:#64748b;margin:8px 0 18px;">تحكم مستقل في نسخة المدير ونسخة الموظفين. التغييرات تحفظ مركزيًا في Firebase.</p>
+  <div id="licensesStatus" style="padding:12px;border-radius:12px;background:#eff6ff;color:#1e40af;margin-bottom:15px;">جارٍ تحميل حالة التراخيص...</div>
+  <div id="licensesCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;"></div>
+  <div style="text-align:center;margin-top:18px;"><button type="button" id="refreshLicensesBtn" class="action-btn primary">🔄 تحديث الحالات</button></div>
+ </div>
 </div>
 
 <!-- مودال طلبات الموظفين -->
@@ -1475,5 +1491,31 @@ async function saveAutomaticStudentScore(answerId, correctFields, maxScore) {
 }
 
 </script>
+
+<script>
+// ==================== إدارة تراخيص النسختين عبر Cloud Function آمنة ====================
+(function(){
+ const modal=document.getElementById('licensesModal');
+ const status=document.getElementById('licensesStatus');
+ const cards=document.getElementById('licensesCards');
+ const call=()=>firebase.app().functions('us-central1').httpsCallable('manageAppLicenses');
+ const ids=[{id:'points',name:'نسخة المدير'},{id:'points-staff',name:'نسخة الموظفين'}];
+ function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+ function cardHtml(x){const exp=x.expiresAt||'';const enabled=x.enabled===true;return `<div style="background:#fff;border:1px solid #dbeafe;border-radius:16px;padding:17px;box-shadow:0 3px 12px #0000000d;">
+ <h3 style="color:#1e3a8a;margin-bottom:12px;">${x.id==='points'?'👨‍💼':'👩‍🏫'} ${x.name}</h3>
+ <div style="font-weight:bold;margin-bottom:12px;color:${enabled?'#15803d':'#dc2626'};">${enabled?'● الترخيص مفعّل':'● الترخيص متوقف'}</div>
+ <label style="display:flex;align-items:center;gap:9px;margin-bottom:14px;font-weight:bold;"><input type="checkbox" id="lic-enabled-${x.id}" ${enabled?'checked':''}> تفعيل الترخيص</label>
+ <label style="display:block;font-weight:bold;margin-bottom:6px;">تاريخ انتهاء الترخيص</label>
+ <input type="date" id="lic-exp-${x.id}" value="${esc(exp)}" style="width:100%;padding:11px;border:1px solid #cbd5e1;border-radius:9px;margin-bottom:14px;">
+ <button type="button" class="action-btn success" style="width:100%;padding:12px;" onclick="saveOneAppLicense('${x.id}')">💾 حفظ ترخيص ${x.id==='points'?'المدير':'الموظفين'}</button>
+ </div>`;}
+ async function load(){status.textContent='⏳ جارٍ قراءة التراخيص...';status.style.background='#eff6ff';status.style.color='#1e40af';cards.innerHTML='';try{const r=await call()({action:'get'});const list=r.data.licenses||[];cards.innerHTML=ids.map(d=>{const x=list.find(a=>a.id===d.id)||{id:d.id,enabled:false,expiresAt:''};return cardHtml({...x,name:d.name});}).join('');status.textContent='✅ تم تحميل حالتي الترخيص من الخادم.';status.style.background='#dcfce7';status.style.color='#166534';}catch(e){status.textContent='❌ تعذر تحميل التراخيص: '+(e.message||e);status.style.background='#fee2e2';status.style.color='#991b1b';}}
+ window.saveOneAppLicense=async function(id){if(!firebaseCurrentUser||firebaseCurrentUser.uid!==ADMIN_UID){alert('غير مصرح لك بإدارة التراخيص.');return;}const enabled=document.getElementById('lic-enabled-'+id).checked;const expiresAt=document.getElementById('lic-exp-'+id).value||null;if(expiresAt&&!/^\d{4}-\d{2}-\d{2}$/.test(expiresAt)){alert('تاريخ الانتهاء غير صالح.');return;}if(!confirm('تأكيد حفظ ترخيص '+(id==='points'?'نسخة المدير':'نسخة الموظفين')+'؟'))return;status.textContent='⏳ جارٍ حفظ التغييرات...';try{await call()({action:'update',appId:id,enabled,expiresAt});status.textContent='✅ تم حفظ الترخيص بنجاح.';status.style.background='#dcfce7';status.style.color='#166534';await load();}catch(e){status.textContent='❌ فشل الحفظ: '+(e.message||e);status.style.background='#fee2e2';status.style.color='#991b1b';}};
+ document.getElementById('openLicensesBtn').addEventListener('click',()=>{modal.style.display='flex';load();});
+ document.getElementById('closeLicensesBtn').addEventListener('click',()=>modal.style.display='none');
+ document.getElementById('refreshLicensesBtn').addEventListener('click',load);
+})();
+</script>
+
 </body>
 </html>
