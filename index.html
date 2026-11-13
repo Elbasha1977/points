@@ -1734,14 +1734,25 @@ async function deleteCustomerPermanently(item){
  const typed=prompt('للتأكيد النهائي، اكتب اسم المشترك كما يظهر تمامًا:\n'+customerName);
  if(typed===null)return;
  if(typed.trim()!==customerName){alert('الاسم غير مطابق. لم يتم حذف أي بيانات.');return;}
- const last=confirm('تأكيد أخير: سيتم حذف «'+customerName+'» وجميع بياناته نهائيًا. هل أنت متأكد؟');
- if(!last)return;
  const button=document.querySelector('[data-delete-customer]');
- if(button){button.disabled=true;button.textContent='⏳ جارٍ الحذف النهائي...';}
+ if(button){button.disabled=true;button.textContent='⏳ جارٍ فحص البيانات...';}
  try{
+  const previewResponse=await customerLicenseCallable()({action:'previewDelete',licenseId:item.id});
+  const preview=previewResponse&&previewResponse.data?previewResponse.data:{};
+  const report='نتيجة المعاينة — لم يتم حذف أي بيانات\n\n'+
+   'جذور Firestore: '+(preview.firestoreRoots??'غير متاح')+'\n'+
+   'مستندات Firestore مع المجموعات الفرعية: '+(preview.firestoreDocumentsIncludingSubcollections??'غير متاح')+'\n'+
+   'حسابات Auth الموجودة: '+(preview.authAccountsFound??'غير متاح')+'\n'+
+   'معرّفات حسابات غير موجودة في Auth: '+(preview.authAccountsMissing??'غير متاح')+'\n'+
+   'ملفات Storage المشار إليها: '+(preview.storageObjectsReferenced??'غير متاح')+'\n\n'+
+   (Array.isArray(preview.warnings)?preview.warnings.join('\n'):'');
+  alert(report);
+  const last=confirm('بعد مراجعة المعاينة: هل تؤكد حذف «'+customerName+'» نهائيًا؟\n\nهذه العملية لا يمكن التراجع عنها.');
+  if(!last)return;
+  if(button)button.textContent='⏳ جارٍ الحذف النهائي...';
   const response=await customerLicenseCallable()({action:'delete',licenseId:item.id,confirmCustomerName:typed.trim()});
   const result=response&&response.data?response.data:{};
-  alert('✅ '+(result.message||'تم حذف المشترك نهائيًا.')+'\n\nحسابات الدخول المحذوفة: '+(result.deletedAuthUsers||0)+'\nمستندات/مجموعات البيانات الرئيسية المحذوفة: '+(result.deletedFirestoreRoots||0)+'\nملفات التخزين المحذوفة: '+(result.deletedStorageFiles||0));
+  alert('✅ '+(result.message||'تم حذف المشترك نهائيًا.')+'\n\nحسابات الدخول المحذوفة: '+(result.deletedAuthUsers||0)+'\nمستندات Firestore المحذوفة (تقدير قبل الحذف): '+(result.deletedFirestoreDocuments||0)+'\nملفات التخزين المحذوفة: '+(result.deletedStorageFiles||0));
   await loadCustomerLicenses();
  }catch(e){console.error('Permanent customer deletion failed:',e);alert('❌ تعذر إكمال الحذف النهائي. لا تحاول حذف البيانات يدويًا. التفاصيل: '+(e.message||e));await loadCustomerLicenses();}
  finally{if(button){button.disabled=false;button.textContent='🗑️ حذف المشترك نهائيًا';}}
