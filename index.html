@@ -1636,8 +1636,8 @@ async function saveAutomaticStudentScore(answerId, correctFields, maxScore) {
   <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:14px;padding:16px;margin-top:20px;">
    <h3 style="color:#1d4ed8;margin-bottom:12px;">🚀 إدارة تحديثات البرنامج</h3>
    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;">
-    <label>نسخة البرنامج<select id="upAppId" style="width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:8px;"><option value="points">نسخة المدير</option><option value="points-staff">نسخة الموظفين</option></select></label>
-    <label>رقم الإصدار<input id="upVersion" placeholder="2.1.0" style="width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:8px;direction:ltr;"></label>
+    <label>النسخة التي تريد تحديد رقم إصدارها<select id="upAppId" style="width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:8px;"><option value="points">نسخة المدير</option><option value="points-staff">نسخة الموظفين</option></select></label>
+    <label>رقم الإصدار الذي سيظهر أعلى برنامج الموظفين (عند اختيار نسخة الموظفين)<input id="upVersion" placeholder="2.1.0" style="width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:8px;direction:ltr;"></label>
     <label>أقل إصدار مسموح<input id="upMinVersion" placeholder="2.0.0" style="width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:8px;direction:ltr;"></label>
     <label>رابط التحديث<input id="upDownloadUrl" placeholder="https://..." style="width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:8px;direction:ltr;"></label>
    </div>
@@ -1647,7 +1647,7 @@ async function saveAutomaticStudentScore(answerId, correctFields, maxScore) {
    <input id="upTargetLicenses" placeholder="licenseId1, licenseId2" style="width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:8px;direction:ltr;">
    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;"><button id="upPublishBtn" class="action-btn primary" style="padding:10px 16px;">حفظ سياسة التحديث</button><button id="upPauseBtn" class="action-btn danger" style="padding:10px 16px;">إيقاف توزيع هذا التحديث</button><button id="upRollbackBtn" class="action-btn warning" style="padding:10px 16px;">الرجوع إلى إصدار سابق</button><button id="upRefreshBtn" class="action-btn info" style="padding:10px 16px;">عرض السياسات الحالية</button></div>
    <div id="upMessageStatus" style="margin-top:10px;font-weight:bold;"></div><div id="upCurrentList" style="margin-top:10px;"></div>
-   <small style="display:block;color:#64748b;margin-top:8px;">هذه السياسة تحدد من تصله رسالة التحديث في التحقق من الترخيص. رفع ملفات الإصدار إلى GitHub ونشرها يظل خطوة منفصلة، ولن يتم تحديث الملفات تلقائيًا بمجرد حفظ السياسة.</small>
+   <small style="display:block;color:#64748b;margin-top:8px;">لعرض رقم الإصدار في برنامج الموظفين: اختر «نسخة الموظفين»، واكتب رقم الإصدار، وحدد الباقات أو العملاء المستهدفين، ثم اضغط «حفظ سياسة التحديث». سيظهر الرقم للموظفين المستهدفين أعلى بيانات الترخيص. حفظ الرقم لا يرفع ملفات HTML ولا ينشر تحديثًا تلقائيًا.</small>
   </div>
 
   <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;"><h3 style="color:#334155;">العملاء الحاليون</h3><button class="action-btn primary" style="padding:10px 18px;" onclick="loadCustomerLicenses()">🔄 تحديث القائمة</button></div>
