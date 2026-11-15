@@ -118,6 +118,18 @@ body { background: linear-gradient(135deg, #dbeafe, #c7d2fe); padding: 20px; min
 
     <div id="syncStatus" class="sync-status">☁️ جاري الاتصال...</div>
 
+    <div class="section" id="pointsMigrationSection" style="border:2px solid #0f766e;background:linear-gradient(135deg,#f0fdfa,#ffffff);">
+        <h2 style="color:#0f766e;">🛡️ ترحيل النقاط إلى التخزين الآمن</h2>
+        <p style="color:#334155;line-height:1.8;margin-bottom:12px;">استخدم <b>main</b> لمدرسة المدير العام، أو أدخل معرّف المدرسة/الترخيص لحساب الموظف. المعاينة لا تكتب أي بيانات؛ التنفيذ ينسخ النقاط إلى التخزين الآمن ويحتفظ بالمصدر والنسخة الاحتياطية.</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+            <label for="pointsMigrationTenant" style="font-weight:bold;">معرّف المدرسة:</label>
+            <input id="pointsMigrationTenant" value="main" autocomplete="off" style="flex:1;min-width:220px;padding:12px;border:2px solid #99f6e4;border-radius:10px;direction:ltr;text-align:left;">
+            <button id="pointsMigrationPreviewBtn" class="action-btn info" type="button" style="padding:12px 20px;">🔎 معاينة فقط</button>
+            <button id="pointsMigrationCommitBtn" class="action-btn success" type="button" disabled style="padding:12px 20px;opacity:.45;">📦 تنفيذ الترحيل</button>
+        </div>
+        <div id="pointsMigrationResult" style="margin-top:14px;padding:12px;border-radius:10px;background:#f8fafc;color:#334155;white-space:pre-wrap;line-height:1.7;">لم تُجرَ معاينة بعد.</div>
+    </div>
+
     <div class="buttons-grid">
         <button class="action-btn primary" id="refreshBtn">🔄 تحديث</button>
         <button class="action-btn info" id="requestsBtn">👥 طلبات الموظفين</button>
@@ -1856,6 +1868,62 @@ document.getElementById('rwMigrationCommitBtn').addEventListener('click',()=>{
  const confirmed=confirm('هل راجعت نتيجة المعاينة وتأكدت من صحة مخزون الجوائز؟ سيتم نسخ العدد القديم إلى المسار الجديد، ولن يتم حذف المصدر القديم.');
  if(confirmed)runRewardsInventoryMigration(true);
 });
+</script>
+
+<script>
+// POINTS safe migration console: dry-run first, explicit commit second.
+(function installPointsMigrationConsole(){
+  let previewTenant = '';
+  let previewReady = false;
+  const $ = id => document.getElementById(id);
+  function setResult(message, isError=false){
+    const box=$('pointsMigrationResult'); if(!box)return;
+    box.textContent=message; box.style.background=isError?'#fef2f2':'#f8fafc'; box.style.color=isError?'#991b1b':'#334155';
+  }
+  function setBusy(busy){
+    ['pointsMigrationPreviewBtn','pointsMigrationCommitBtn'].forEach(id=>{const b=$(id);if(b)b.disabled=busy||(id==='pointsMigrationCommitBtn'&&!previewReady);});
+  }
+  async function invoke(commit){
+    if(!firebaseCurrentUser||firebaseCurrentUser.uid!==ADMIN_UID)throw new Error('هذه العملية متاحة للمدير العام فقط.');
+    const tenantId=String($('pointsMigrationTenant').value||'').trim();
+    if(!tenantId||tenantId.includes('/'))throw new Error('أدخل معرّف مدرسة صحيحًا.');
+    const call=firebase.app().functions('us-central1').httpsCallable('migrateClassPointsToFeatureDocs');
+    const response=await call({tenantId,commit});
+    return response&&response.data?response.data:{};
+  }
+  async function preview(){
+    previewReady=false;previewTenant='';$('pointsMigrationCommitBtn').disabled=true;$('pointsMigrationCommitBtn').style.opacity='.45';setBusy(true);
+    try{
+      const r=await invoke(false);
+      previewTenant=String($('pointsMigrationTenant').value||'').trim();
+      previewReady=r.success===true&&r.dryRun===true&&Number(r.classCount)>0&&Number(r.invalidClasses||0)===0&&Array.isArray(r.results)&&r.results.every(x=>x.status==='would_copy'||x.status==='already_migrated');
+      const lines=[`معرّف المدرسة: ${r.tenantId||previewTenant}`,`الفصول المكتشفة: ${r.classCount||0}`,`جاهزة للنسخ: ${(r.results||[]).filter(x=>x.status==='would_copy').length}`,`مرّحلة مسبقًا: ${(r.results||[]).filter(x=>x.status==='already_migrated').length}`,`الفصول المتجاوزة: ${r.skippedClasses||0}`,`الفصول غير السليمة: ${r.invalidClasses||0}`,'',...(r.results||[]).map(x=>`${x.classId||x.documentId}: ${x.status} (${x.students||0} طالب)` )];
+      setResult(lines.join('\n'),!previewReady);
+      if(!previewReady&&r.classCount===0)setResult('لم يُعثر على فصول لهذا المعرّف. لم تُكتب أي بيانات. تحقق من schoolId ومصدر بيانات الفصول.',true);
+      $('pointsMigrationCommitBtn').disabled=!previewReady;$('pointsMigrationCommitBtn').style.opacity=previewReady?'1':'.45';
+    }catch(e){setResult('فشلت المعاينة: '+(e.message||e),true);}
+    finally{setBusy(false);$('pointsMigrationCommitBtn').disabled=!previewReady;$('pointsMigrationCommitBtn').style.opacity=previewReady?'1':'.45';}
+  }
+  async function commit(){
+    const tenantId=String($('pointsMigrationTenant').value||'').trim();
+    if(!previewReady||tenantId!==previewTenant){setResult('أعد المعاينة بعد تغيير معرّف المدرسة قبل التنفيذ.',true);return;}
+    const ok=confirm('سيتم نسخ نقاط جميع الفصول الظاهرة في المعاينة إلى classFeatureData مع إنشاء نسخة احتياطية. لن تُحذف البيانات الأصلية. هل تريد المتابعة؟');
+    if(!ok)return;
+    setBusy(true);
+    try{
+      const r=await invoke(true);
+      previewReady=false;
+      const lines=[`اكتمل طلب الترحيل للمدرسة: ${r.tenantId||tenantId}`,`الفصول المكتشفة: ${r.classCount||0}`,`الفصول التي نُسخت: ${r.copiedClasses||0}`,`الفصول المتجاوزة: ${r.skippedClasses||0}`,`الفصول غير السليمة: ${r.invalidClasses||0}`,`عمليات الكتابة: ${r.writesPerformed||0}`,'',...(r.results||[]).map(x=>`${x.classId||x.documentId}: ${x.status}`)];
+      setResult(lines.join('\n'),r.success!==true||Number(r.invalidClasses||0)>0);
+    }catch(e){setResult('فشل تنفيذ الترحيل: '+(e.message||e),true);}
+    finally{setBusy(false);$('pointsMigrationCommitBtn').disabled=true;$('pointsMigrationCommitBtn').style.opacity='.45';}
+  }
+  document.addEventListener('DOMContentLoaded',()=>{
+    if($('pointsMigrationPreviewBtn'))$('pointsMigrationPreviewBtn').addEventListener('click',preview);
+    if($('pointsMigrationCommitBtn'))$('pointsMigrationCommitBtn').addEventListener('click',commit);
+    const input=$('pointsMigrationTenant');if(input)input.addEventListener('input',()=>{previewReady=false;$('pointsMigrationCommitBtn').disabled=true;$('pointsMigrationCommitBtn').style.opacity='.45';});
+  });
+})();
 </script>
 </body>
 </html>
