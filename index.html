@@ -84,6 +84,17 @@ body { background: linear-gradient(135deg, #dbeafe, #c7d2fe); padding: 20px; min
 .lws-field:hover .delete-field-btn { display: flex; }
 .lws-field input, .lws-field textarea { width: 100%; height: 100%; border: none; background: transparent; text-align: center; font-family: inherit; outline: none; pointer-events: none; }
 </style>
+<style id="student-worksheet-mobile-fix">
+@media (max-width: 600px) {
+  #stWorkspace { padding: 8px !important; overflow-x: hidden !important; }
+  #stImgContainer { display:block !important; width:100% !important; max-width:100% !important; }
+  #stImg { width:100% !important; max-width:100% !important; height:auto !important; }
+  #stFields { width:100% !important; height:100% !important; }
+  #stFields > div { max-width:100%; min-width:0; }
+  #stFields input, #stFields textarea { font-size:clamp(10px,2.5vw,16px) !important; }
+  #stInfoForm, #stSubmitArea { padding:14px !important; }
+}
+</style>
 </head>
 <body>
 
@@ -187,18 +198,36 @@ body { background: linear-gradient(135deg, #dbeafe, #c7d2fe); padding: 20px; min
 </div>
 
 
-<!-- مودال قراءة إجابات الطلاب وتصحيحها -->
+<!-- مودال إجابات الطلاب: اختيار حالة التصحيح ثم عرض القائمة -->
 <div id="studentAnswersModal" class="modal" style="z-index:1060;">
   <div class="modal-content" style="max-width:1200px;width:96%;max-height:90vh;display:flex;flex-direction:column;">
     <button class="modal-close" onclick="closeStudentAnswers()">✕</button>
     <h2 style="color:#1e3a8a;">📚 إجابات الطلاب والتصحيح</h2>
-    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
-      <select id="answersWorksheetFilter" onchange="loadStudentAnswers()" style="padding:10px;border:1px solid #cbd5e1;border-radius:8px;flex:1;min-width:220px;">
-        <option value="">كل أوراق العمل</option>
-      </select>
-      <button class="action-btn primary" onclick="loadStudentAnswers()">🔄 تحديث الإجابات</button>
+
+    <div id="studentAnswersCategoryView" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:18px;padding:22px 8px;">
+      <button type="button" onclick="showStudentAnswersCategory('pending')" style="border:2px solid #f59e0b;background:linear-gradient(145deg,#fff7ed,#ffedd5);border-radius:20px;padding:28px 18px;cursor:pointer;min-height:175px;color:#9a3412;box-shadow:0 5px 16px rgba(154,52,18,.10);">
+        <div style="font-size:48px;margin-bottom:12px;">📝</div>
+        <div style="font-size:21px;font-weight:900;">طلاب غير مصححين</div>
+        <div style="font-size:13px;margin-top:8px;">الإجابات التي لم تُعتمد درجاتها بعد</div>
+      </button>
+      <button type="button" onclick="showStudentAnswersCategory('graded')" style="border:2px solid #16a34a;background:linear-gradient(145deg,#f0fdf4,#dcfce7);border-radius:20px;padding:28px 18px;cursor:pointer;min-height:175px;color:#166534;box-shadow:0 5px 16px rgba(22,101,52,.10);">
+        <div style="font-size:48px;margin-bottom:12px;">✅</div>
+        <div style="font-size:21px;font-weight:900;">طلاب تم تصحيحهم</div>
+        <div style="font-size:13px;margin-top:8px;">الإجابات التي تم حفظ درجاتها بالفعل</div>
+      </button>
     </div>
-    <div id="studentAnswersList" style="overflow:auto;flex:1;"><div class="loading">⏳ جارٍ تحميل إجابات الطلاب...</div></div>
+
+    <div id="studentAnswersBrowserView" style="display:none;flex:1;min-height:0;flex-direction:column;">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
+        <button class="action-btn info" onclick="backToStudentAnswersCategories()" style="padding:10px 16px;">⬅️ رجوع للتصنيفين</button>
+        <strong id="studentAnswersCategoryTitle" style="font-size:18px;color:#1e3a8a;"></strong>
+        <select id="answersWorksheetFilter" onchange="loadStudentAnswers()" style="padding:10px;border:1px solid #cbd5e1;border-radius:8px;flex:1;min-width:220px;">
+          <option value="">كل أوراق العمل</option>
+        </select>
+        <button class="action-btn primary" onclick="loadStudentAnswers()" style="padding:10px 16px;">🔄 تحديث الإجابات</button>
+      </div>
+      <div id="studentAnswersList" style="overflow:auto;flex:1;"><div class="loading">⏳ جارٍ تحميل إجابات الطلاب...</div></div>
+    </div>
   </div>
 </div>
 <!-- مودال Live Worksheets -->
@@ -944,7 +973,15 @@ async function saveLiveWorksheet() {
         batch.set(worksheetRef, {
             title: title,
             imageUrl: currentLwsImageUrl,
-            fields: currentLwsFields,
+            fields: currentLwsFields.map(field => ({
+                ...field,
+                wPct: document.getElementById('lwsBaseImage').clientWidth > 0
+                    ? (Number(field.w || 0) / document.getElementById('lwsBaseImage').clientWidth) * 100 : 0,
+                hPct: document.getElementById('lwsBaseImage').clientHeight > 0
+                    ? (Number(field.h || 0) / document.getElementById('lwsBaseImage').clientHeight) * 100 : 0
+            })),
+            editorImageWidth: document.getElementById('lwsBaseImage').clientWidth || 0,
+            editorImageHeight: document.getElementById('lwsBaseImage').clientHeight || 0,
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
             createdBy: firebaseCurrentUser.uid,
             schoolId: tenantId
@@ -1138,13 +1175,18 @@ window.startStudentWorksheet = async function() {
         fieldsDiv.innerHTML = '';
         window.currentStudentWorksheet.fields.forEach(f => {
             const el = document.createElement('div');
-            el.style.cssText = `position:absolute; background:#fef08a; border:2px dashed #ca8a04; border-radius:5px; display:flex; align-items:center; justify-content:center; left:${f.x}%; top:${f.y}%; width:${f.w}px; height:${f.h}px;`;
-            
+            const renderedImage = document.getElementById('stImg');
+            const editorWidth = Number(window.currentStudentWorksheet.editorImageWidth || 0);
+            const scale = (renderedImage && editorWidth > 0) ? renderedImage.clientWidth / editorWidth : 1;
+            const fieldWidth = Number(f.wPct) > 0 ? f.wPct + '%' : (Number(f.w || 0) * scale) + 'px';
+            const fieldHeight = Number(f.hPct) > 0 ? f.hPct + '%' : (Number(f.h || 0) * scale) + 'px';
+            el.style.cssText = `position:absolute; box-sizing:border-box; background:#fef08a; border:2px dashed #ca8a04; border-radius:5px; display:flex; align-items:center; justify-content:center; left:${f.x}%; top:${f.y}%; width:${fieldWidth}; height:${fieldHeight}; max-width:100%; overflow:hidden;`;
+
             let inputHtml = '';
-            if(f.type === 'short_text') inputHtml = `<input type="text" id="${f.id}" style="width:100%; height:100%; border:none; background:transparent; text-align:center; font-weight:bold; outline:none;">`;
-            else if(f.type === 'long_text') inputHtml = `<textarea id="${f.id}" style="width:100%; height:100%; border:none; background:transparent; resize:none; outline:none; padding:5px;"></textarea>`;
-            else inputHtml = `<input type="text" id="${f.id}" style="width:100%; height:100%; border:none; background:transparent; text-align:center; font-weight:bold; outline:none;">`;
-            
+            if(f.type === 'short_text') inputHtml = `<input type="text" id="${f.id}" style="box-sizing:border-box;width:100%;height:100%;min-width:0;border:none;background:transparent;text-align:center;font-weight:bold;outline:none;font-size:clamp(10px,2.5vw,16px);">`;
+            else if(f.type === 'long_text') inputHtml = `<textarea id="${f.id}" style="box-sizing:border-box;width:100%;height:100%;min-width:0;border:none;background:transparent;resize:none;outline:none;padding:3px;font-size:clamp(10px,2.5vw,16px);"></textarea>`;
+            else inputHtml = `<input type="text" id="${f.id}" style="box-sizing:border-box;width:100%;height:100%;min-width:0;border:none;background:transparent;text-align:center;font-weight:bold;outline:none;font-size:clamp(10px,2.5vw,16px);">`;
+
             el.innerHTML = inputHtml;
             fieldsDiv.appendChild(el);
         });
@@ -1240,37 +1282,38 @@ window.submitStudentAnswers = async function() {
 }
 
 // ==================== إجابات الطلاب والتصحيح ====================
+let currentStudentAnswersCategory = 'pending';
+
 function openStudentAnswers() {
   document.getElementById('studentAnswersModal').style.display = 'flex';
-  loadAnswerWorksheetFilter().then(loadStudentAnswers);
+  backToStudentAnswersCategories();
 }
 function closeStudentAnswers() {
   document.getElementById('studentAnswersModal').style.display = 'none';
+}
+function backToStudentAnswersCategories() {
+  document.getElementById('studentAnswersCategoryView').style.display = 'grid';
+  document.getElementById('studentAnswersBrowserView').style.display = 'none';
+}
+async function showStudentAnswersCategory(category) {
+  currentStudentAnswersCategory = category === 'graded' ? 'graded' : 'pending';
+  document.getElementById('studentAnswersCategoryView').style.display = 'none';
+  document.getElementById('studentAnswersBrowserView').style.display = 'flex';
+  document.getElementById('studentAnswersCategoryTitle').textContent =
+    currentStudentAnswersCategory === 'graded' ? '✅ الطلاب الذين تم تصحيحهم' : '📝 الطلاب غير المصححين';
+  await loadAnswerWorksheetFilter();
+  await loadStudentAnswers();
 }
 async function loadAnswerWorksheetFilter() {
   const select = document.getElementById('answersWorksheetFilter');
   const prior = select.value;
   try {
     const snap = await firestoreDb.collection('worksheets').orderBy('createdAt','desc').get();
-    const answerTitles = {};
-    try {
-      const submitted = await firestoreDb.collection('student_answers').orderBy('submittedAt','desc').get();
-      submitted.docs.forEach(answerDoc => {
-        const a = answerDoc.data() || {};
-        if (a.worksheetId && !answerTitles[a.worksheetId]) {
-          answerTitles[a.worksheetId] = a.worksheetTitle || '';
-        }
-      });
-    } catch (titleReadError) {
-      console.warn('Could not load submitted worksheet titles:', titleReadError);
-    }
     select.innerHTML = '<option value="">كل أوراق العمل</option>';
     snap.forEach(doc => {
       const op = document.createElement('option');
       op.value = doc.id;
-      const wd = doc.data() || {};
-      const readableTitle = answerTitles[doc.id] || wd.title || wd.worksheetTitle || wd.name || wd.subject || '';
-      op.textContent = readableTitle ? String(readableTitle) : 'ورقة عمل بدون عنوان';
+      op.textContent = doc.data().title || 'ورقة عمل بدون عنوان';
       select.appendChild(op);
     });
     if (prior && [...select.options].some(o => o.value === prior)) select.value = prior;
@@ -1291,41 +1334,32 @@ async function loadStudentAnswers() {
     const worksheetId = document.getElementById('answersWorksheetFilter').value;
     if (worksheetId) query = query.where('worksheetId','==',worksheetId);
     const snap = await query.get();
-
-    // تحقق من سجل النتيجة المقابل أيضًا؛ بعض الإصدارات القديمة كانت تحفظ
-    // حالة الاعتماد في homework_results وليس داخل student_answers.
-    const pendingDocs = [];
-    for (const answerDoc of snap.docs) {
-      const a = answerDoc.data() || {};
-      let alreadyCredited =
-        a.pointsCredited === true ||
-        a.creditStatus === 'credited' ||
-        a.creditStatus === 'duplicate' ||
-        a.duplicateSubmission === true;
-
-      if (!alreadyCredited) {
-        try {
-          const resultDoc = await firestoreDb.collection('homework_results').doc(answerDoc.id).get();
-          if (resultDoc.exists) {
-            const result = resultDoc.data() || {};
-            alreadyCredited =
-              result.status === 'credited' ||
-              result.pointsCredited === true ||
-              result.creditStatus === 'credited';
-          }
-        } catch (statusReadError) {
-          console.warn('Could not verify homework result status for', answerDoc.id, statusReadError);
-        }
-      }
-      if (!alreadyCredited) pendingDocs.push(answerDoc);
+    if (snap.empty) {
+      list.innerHTML = '<div class="empty-message">لا توجد إجابات مرسلة حتى الآن.</div>';
+      return;
     }
-
-    if (!pendingDocs.length) {
-      list.innerHTML = '<div class="empty-message" style="padding:24px;text-align:center;color:#64748b;font-weight:bold">لا يوجد طلاب حتى الآن يحتاجون إلى التصحيح.</div>';
+    // تُعد الإجابة مصححة إذا حُفظ لها وقت التصحيح أو بيانات الدرجة،
+    // حتى لو تعذر إرسال النقاط في المحاولة السابقة.
+    const matchingDocs = snap.docs.filter(doc => {
+      const data = doc.data() || {};
+      const isGraded = !!(
+        data.gradedAt ||
+        data.gradedBy ||
+        data.gradingMode ||
+        data.questionGrades ||
+        data.pointsCredited === true ||
+        data.creditStatus === 'credited'
+      );
+      return currentStudentAnswersCategory === 'graded' ? isGraded : !isGraded;
+    });
+    if (!matchingDocs.length) {
+      list.innerHTML = currentStudentAnswersCategory === 'graded'
+        ? '<div class="empty-message">لا توجد إجابات تم تصحيحها في هذا التصنيف حتى الآن.</div>'
+        : '<div class="empty-message">🎉 لا توجد إجابات غير مصححة حاليًا.</div>';
       return;
     }
     list.innerHTML = '';
-    for (const doc of pendingDocs) {
+    for (const doc of matchingDocs) {
       const a = doc.data();
       const answerMap = a.answers || {};
       const worksheetDoc = await firestoreDb.collection('worksheets').doc(a.worksheetId).get();
