@@ -588,9 +588,9 @@ async function approveStaffRequest(doc, data, card) {
         const result = await approveCall({ requestId: data.uid || doc.id, approvedClassIds: approvedClasses });
         const payload = result && result.data ? result.data : {};
         if (!payload.licenseId) throw new Error('لم يُرجع الخادم معرّف مساحة العميل.');
-        // ينشئ الخادم مساحة العميل والفصول داخل معاملة الاعتماد وحجز المقعد.
-        if (card) card.innerHTML = '<div style="color:#15803d;font-weight:bold;padding:10px;">✅ تم الاعتماد وحجز مقعد للموظف: ' + (data.email || '') + '</div>';
-        alert('تم اعتماد الحساب وحجز مقعد وإنشاء مساحة العميل بنجاح.');
+        // ينشئ الخادم مساحة العميل والفصول وسجلات النقاط الآمنة داخل معاملة الاعتماد نفسها.
+        if (card) card.innerHTML = '<div style="color:#15803d;font-weight:bold;padding:10px;">✅ تم اعتماد الحساب وتفعيله وتجهيز فصوله والنقاط الآمنة: ' + (data.email || '') + '</div>';
+        alert('تم اعتماد الحساب وتفعيله بنجاح، وتم تجهيز ' + (payload.pointsPrepared || approvedClasses.length) + ' فصل/فصول مع سجلات النقاط الآمنة تلقائيًا.');
         loadStatistics(); loadQuickRequests();
     } catch (e) {
         console.error('approveStaffRequest failed', e);
@@ -1380,14 +1380,21 @@ function recalculateStudentAnswerScore(answerId) {
 }
 
 async function awardHomeworkPointsToEmployee(answerId, score) {
-  if (!firebaseAuth || !firebaseAuth.currentUser) throw new Error('يجب تسجيل الدخول أولاً.');
+  if (!firebaseCurrentUser || !firebase.app || typeof firebase.app().functions !== 'function') {
+    throw new Error('يجب تسجيل الدخول والاتصال بالخادم أولاً.');
+  }
   const amount = Number(score);
-  if (!Number.isInteger(amount) || amount < 0 || amount > 10000) throw new Error('درجة الواجب غير صحيحة.');
+  if (!Number.isFinite(amount) || amount < 0 || amount > 10000) {
+    throw new Error('درجة الواجب غير صحيحة.');
+  }
+  // Use the same secure points sidecar as the staff app. The callable derives
+  // school/class/student from the stored answer and enforces role/tenant access.
+  // answerId and worksheet/student tuple are idempotency keys on the server.
   const call = firebase.app().functions('us-central1').httpsCallable('awardHomeworkPointsSecure');
-  const response = await call({ answerId: String(answerId), amount });
+  const response = await call({ answerId: String(answerId), score: amount });
   const result = response && response.data ? response.data : {};
   if (result.success !== true) throw new Error('لم يؤكد الخادم اعتماد نقاط الواجب.');
-  return result.awarded === true;
+  return result.credited === true;
 }
 
 async function saveAutomaticStudentScore(answerId, correctFields, maxScore) {
