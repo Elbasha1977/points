@@ -84,17 +84,6 @@ body { background: linear-gradient(135deg, #dbeafe, #c7d2fe); padding: 20px; min
 .lws-field:hover .delete-field-btn { display: flex; }
 .lws-field input, .lws-field textarea { width: 100%; height: 100%; border: none; background: transparent; text-align: center; font-family: inherit; outline: none; pointer-events: none; }
 </style>
-<style id="student-worksheet-mobile-fix">
-@media (max-width: 600px) {
-  #stWorkspace { padding: 8px !important; overflow-x: hidden !important; }
-  #stImgContainer { display:block !important; width:100% !important; max-width:100% !important; }
-  #stImg { width:100% !important; max-width:100% !important; height:auto !important; }
-  #stFields { width:100% !important; height:100% !important; }
-  #stFields > div { max-width:100%; min-width:0; }
-  #stFields input, #stFields textarea { font-size:clamp(10px,2.5vw,16px) !important; }
-  #stInfoForm, #stSubmitArea { padding:14px !important; }
-}
-</style>
 </head>
 <body>
 
@@ -955,15 +944,7 @@ async function saveLiveWorksheet() {
         batch.set(worksheetRef, {
             title: title,
             imageUrl: currentLwsImageUrl,
-            fields: currentLwsFields.map(field => ({
-                ...field,
-                wPct: document.getElementById('lwsBaseImage').clientWidth > 0
-                    ? (Number(field.w || 0) / document.getElementById('lwsBaseImage').clientWidth) * 100 : 0,
-                hPct: document.getElementById('lwsBaseImage').clientHeight > 0
-                    ? (Number(field.h || 0) / document.getElementById('lwsBaseImage').clientHeight) * 100 : 0
-            })),
-            editorImageWidth: document.getElementById('lwsBaseImage').clientWidth || 0,
-            editorImageHeight: document.getElementById('lwsBaseImage').clientHeight || 0,
+            fields: currentLwsFields,
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
             createdBy: firebaseCurrentUser.uid,
             schoolId: tenantId
@@ -1157,18 +1138,13 @@ window.startStudentWorksheet = async function() {
         fieldsDiv.innerHTML = '';
         window.currentStudentWorksheet.fields.forEach(f => {
             const el = document.createElement('div');
-            const renderedImage = document.getElementById('stImg');
-            const editorWidth = Number(window.currentStudentWorksheet.editorImageWidth || 0);
-            const scale = (renderedImage && editorWidth > 0) ? renderedImage.clientWidth / editorWidth : 1;
-            const fieldWidth = Number(f.wPct) > 0 ? f.wPct + '%' : (Number(f.w || 0) * scale) + 'px';
-            const fieldHeight = Number(f.hPct) > 0 ? f.hPct + '%' : (Number(f.h || 0) * scale) + 'px';
-            el.style.cssText = `position:absolute; box-sizing:border-box; background:#fef08a; border:2px dashed #ca8a04; border-radius:5px; display:flex; align-items:center; justify-content:center; left:${f.x}%; top:${f.y}%; width:${fieldWidth}; height:${fieldHeight}; max-width:100%; overflow:hidden;`;
-
+            el.style.cssText = `position:absolute; background:#fef08a; border:2px dashed #ca8a04; border-radius:5px; display:flex; align-items:center; justify-content:center; left:${f.x}%; top:${f.y}%; width:${f.w}px; height:${f.h}px;`;
+            
             let inputHtml = '';
-            if(f.type === 'short_text') inputHtml = `<input type="text" id="${f.id}" style="box-sizing:border-box;width:100%;height:100%;min-width:0;border:none;background:transparent;text-align:center;font-weight:bold;outline:none;font-size:clamp(10px,2.5vw,16px);">`;
-            else if(f.type === 'long_text') inputHtml = `<textarea id="${f.id}" style="box-sizing:border-box;width:100%;height:100%;min-width:0;border:none;background:transparent;resize:none;outline:none;padding:3px;font-size:clamp(10px,2.5vw,16px);"></textarea>`;
-            else inputHtml = `<input type="text" id="${f.id}" style="box-sizing:border-box;width:100%;height:100%;min-width:0;border:none;background:transparent;text-align:center;font-weight:bold;outline:none;font-size:clamp(10px,2.5vw,16px);">`;
-
+            if(f.type === 'short_text') inputHtml = `<input type="text" id="${f.id}" style="width:100%; height:100%; border:none; background:transparent; text-align:center; font-weight:bold; outline:none;">`;
+            else if(f.type === 'long_text') inputHtml = `<textarea id="${f.id}" style="width:100%; height:100%; border:none; background:transparent; resize:none; outline:none; padding:5px;"></textarea>`;
+            else inputHtml = `<input type="text" id="${f.id}" style="width:100%; height:100%; border:none; background:transparent; text-align:center; font-weight:bold; outline:none;">`;
+            
             el.innerHTML = inputHtml;
             fieldsDiv.appendChild(el);
         });
@@ -1301,12 +1277,19 @@ async function loadStudentAnswers() {
     const worksheetId = document.getElementById('answersWorksheetFilter').value;
     if (worksheetId) query = query.where('worksheetId','==',worksheetId);
     const snap = await query.get();
-    if (snap.empty) {
-      list.innerHTML = '<div class="empty-message">لا توجد إجابات مرسلة حتى الآن.</div>';
+    // اعرض فقط الإجابات التي لم يكتمل اعتمادها وإرسال نقاطها.
+    // الإجابات المعتمدة تبقى محفوظة في Firestore ولا يتم حذفها.
+    const pendingDocs = snap.docs.filter(doc => {
+      const a = doc.data() || {};
+      return !(a.pointsCredited === true || a.creditStatus === 'credited' ||
+               a.creditStatus === 'duplicate' || a.duplicateSubmission === true);
+    });
+    if (!pendingDocs.length) {
+      list.innerHTML = '<div class="empty-message" style="padding:24px;text-align:center;color:#64748b;font-weight:bold">✅ لا توجد إجابات معلّقة للتصحيح. جميع الإجابات الظاهرة تم اعتمادها أو إرسال نقاطها.</div>';
       return;
     }
     list.innerHTML = '';
-    for (const doc of snap.docs) {
+    for (const doc of pendingDocs) {
       const a = doc.data();
       const answerMap = a.answers || {};
       const worksheetDoc = await firestoreDb.collection('worksheets').doc(a.worksheetId).get();
@@ -1506,6 +1489,13 @@ async function saveAutomaticStudentScore(answerId, correctFields, maxScore) {
       }, {merge:true});
       alert('✅ تم اعتماد الدرجة ' + score + ' من ' + maxScore + ' وإرسال ' + score + ' نقطة إلى برنامج النقاط بنجاح.');
       if (saveButton) { saveButton.disabled = true; saveButton.textContent = '✅ تم الاعتماد وإرسال النقاط'; }
+      // أزل البطاقة من قائمة العمل الحالية فقط؛ لا تحذف أي سجل من قاعدة البيانات.
+      const completedCard = document.getElementById('answer-card-' + answerId);
+      if (completedCard) completedCard.remove();
+      const answersList = document.getElementById('studentAnswersList');
+      if (answersList && !answersList.querySelector('[id^="answer-card-"]')) {
+        answersList.innerHTML = '<div class="empty-message" style="padding:24px;text-align:center;color:#64748b;font-weight:bold">✅ تم الانتهاء من تصحيح جميع الإجابات المعلّقة.</div>';
+      }
     } catch (awardError) {
       alert('تم حفظ الدرجة (' + score + '/' + maxScore + ')، لكن تعذّر إرسال النقاط إلى برنامج الموظفين. يمكنك المحاولة مرة أخرى. السبب: ' + awardError.message);
       if (saveButton) { saveButton.disabled = false; saveButton.textContent = '🔁 إعادة محاولة إرسال النقاط'; }
