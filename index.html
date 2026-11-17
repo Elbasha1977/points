@@ -679,11 +679,13 @@ async function loadAllStaff() {
                 <button class="edit-btn" style="background:#2563eb; color:white; border:none; padding:8px 14px; border-radius:8px; cursor:pointer;">✏️ تعديل</button>
                 <button class="toggle-btn" style="background:${isActive ? '#b45309' : '#16a34a'}; color:white; border:none; padding:8px 14px; border-radius:8px; cursor:pointer;">${isActive ? '⏸️ إيقاف' : '▶️ تفعيل'}</button>
                 <button class="reset-btn" style="background:#0f766e; color:white; border:none; padding:8px 14px; border-radius:8px; cursor:pointer;">🔑 كلمة المرور</button>
+                <button class="delete-staff-btn" style="background:#b91c1c; color:white; border:none; padding:8px 14px; border-radius:8px; cursor:pointer;">🗑️ حذف نهائي</button>
                 </div>`;
             container.appendChild(card);
             card.querySelector('.edit-btn').onclick = () => editStaff(doc.id, d);
             card.querySelector('.toggle-btn').onclick = () => toggleStaffActive(doc.id, d);
             card.querySelector('.reset-btn').onclick = () => sendPasswordReset(email);
+            card.querySelector('.delete-staff-btn').onclick = () => deleteStaffPermanently(doc.id, email);
         });
     } catch (e) { container.innerHTML = '<div class="empty-message" style="color:red;">خطأ: ' + e.message + '</div>'; }
 }
@@ -708,9 +710,32 @@ async function sendPasswordReset(email) {
     try { await firebaseAuth.sendPasswordResetEmail(email); alert('✅ تم إرسال الرابط'); } catch (e) { alert(e.message); }
 }
 
-async function deleteStaff(uid, email) {
-    if (!confirm('⚠️ حذف حساب ' + email + ' نهائياً؟')) return;
-    try { const call=firebase.app().functions('us-central1').httpsCallable('setStaffAccountActive'); await call({uid:uid,active:false}); alert('تم إيقاف الحساب وإعادة مقعده. احتفظنا بسجل الحساب للمراجعة.'); loadAllStaff(); loadStatistics(); } catch (e) { alert('تعذر إيقاف الحساب: '+e.message); }
+async function deleteStaff(uid, email) { return deleteStaffPermanently(uid, email); }
+
+async function deleteStaffPermanently(uid, email) {
+    try {
+        const call = firebase.app().functions('us-central1').httpsCallable('deleteStaffAccount');
+        const previewRes = await call({ action: 'preview', uid });
+        const p = previewRes.data || {};
+        if (!p.success || !p.previewOnly) throw new Error('تعذر الحصول على معاينة الحذف.');
+        const details = 'سيتم حذف حساب الموظف نهائيًا:\\nالاسم: ' + (p.displayName || '—') +
+            '\\nالبريد: ' + (p.email || email || '—') +
+            '\\nحجوزات المادة/الشعبة: ' + Number(p.assignmentCount || 0) +
+            '\\nحالة الحساب: ' + (p.active ? 'نشط' : 'موقوف') +
+            '\\n\\nلن يتم حذف المدرسة أو بيانات الطلاب أو سجلات النقاط. هل تريد المتابعة؟';
+        if (!confirm(details)) return;
+        const typedEmail = prompt('للتأكيد النهائي، اكتب البريد الإلكتروني للموظف كما يظهر تمامًا:\\n' + p.email);
+        if (typedEmail === null) return;
+        if (typedEmail.trim().toLowerCase() !== String(p.email).trim().toLowerCase()) {
+            alert('البريد غير مطابق. لم يتم حذف أي بيانات.'); return;
+        }
+        const result = await call({ action: 'delete', uid, confirmEmail: typedEmail.trim() });
+        if (!result.data || result.data.success !== true) throw new Error('لم يؤكد الخادم نجاح الحذف.');
+        alert('✅ ' + (result.data.message || 'تم حذف الموظف نهائيًا.'));
+        if (typeof loadAllStaff === 'function') loadAllStaff();
+        if (typeof loadStatistics === 'function') loadStatistics();
+        if (typeof loadCustomerLicenses === 'function') loadCustomerLicenses();
+    } catch (e) { alert('تعذر حذف الموظف: ' + (e.message || e)); }
 }
 
 // ==================== الاعتماد اليدوي ====================
@@ -1239,12 +1264,40 @@ window.submitStudentAnswers = async function() {
         return;
     }
     const btn = document.querySelector('#stSubmitArea button');
-    if (btn) { btn.disabled = true; btn.textContent = '⏳ جارٍ إرسال الإجابات...'; }
+    const fields = Array.isArray(window.currentStudentWorksheet && window.currentStudentWorksheet.fields)
+        ? window.currentStudentWorksheet.fields : [];
+    if (!fields.length) {
+        alert('لا يمكن إرسال الواجب؛ لم يتم تحميل أسئلته بشكل صحيح. أعد فتح الورقة أو تواصل مع المعلم.');
+        return;
+    }
     const answers = {};
-    window.currentStudentWorksheet.fields.forEach(f => {
+    const unanswered = [];
+    fields.forEach((f, index) => {
         const input = document.getElementById(f.id);
-        if(input) answers[f.id] = input.value;
+        const value = input ? String(input.value == null ? '' : input.value).trim() : '';
+        if (input) answers[f.id] = value;
+        if (!value) {
+            unanswered.push(index + 1);
+            if (input) {
+                input.style.outline = '2px solid #dc2626';
+                input.style.backgroundColor = '#fef2f2';
+                input.addEventListener('input', function clearMissingMark(){
+                    if (String(input.value || '').trim()) {
+                        input.style.outline = '';
+                        input.style.backgroundColor = 'transparent';
+                        input.removeEventListener('input', clearMissingMark);
+                    }
+                });
+            }
+        }
     });
+    if (unanswered.length) {
+        alert('لم يتم إرسال الواجب. أكمل الإجابة عن جميع الأسئلة أولاً.\n\nالأسئلة التي لم تتم الإجابة عنها: ' + unanswered.join('، '));
+        const firstMissing = document.getElementById(fields[unanswered[0] - 1].id);
+        if (firstMissing) firstMissing.focus();
+        return;
+    }
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ جارٍ إرسال الإجابات...'; }
     const worksheetId = new URLSearchParams(window.location.search).get('id');
     // وثيقة ثابتة لكل طالب وورقة عمل: تمنع الإرسال الثاني حتى من جهاز آخر.
     const answerDocId = identity.studentKey + '_' + worksheetId;
@@ -1791,6 +1844,7 @@ async function loadLicenseStaffAccounts(license,host){
    row.querySelector('[data-edit-account]').onclick=()=>editStaff(doc.id,d);
    row.querySelector('[data-toggle-account]').onclick=()=>toggleStaffActive(doc.id,d);
    row.querySelector('[data-reset-account]').onclick=()=>sendPasswordReset(d.email||doc.id);
+   row.querySelector('[data-delete-account]').onclick=()=>deleteStaffPermanently(doc.id,d.email||doc.id);
    host.appendChild(row);
   });
  }catch(e){host.innerHTML='<div style="color:#b91c1c;">تعذر تحميل الحسابات: '+escapeLicenseText(e.message)+'</div>';}
