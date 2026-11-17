@@ -215,6 +215,11 @@ body { background: linear-gradient(135deg, #dbeafe, #c7d2fe); padding: 20px; min
         <div style="font-size:21px;font-weight:900;">طلاب تم تصحيحهم</div>
         <div style="font-size:13px;margin-top:8px;">الإجابات التي تم حفظ درجاتها بالفعل</div>
       </button>
+      <button type="button" onclick="showStudentAnswersCategory('empty')" style="border:2px solid #ef4444;background:linear-gradient(145deg,#fff1f2,#ffe4e6);border-radius:20px;padding:28px 18px;cursor:pointer;min-height:175px;color:#9f1239;box-shadow:0 5px 16px rgba(159,18,57,.10);">
+        <div style="font-size:48px;margin-bottom:12px;">🗑️</div>
+        <div style="font-size:21px;font-weight:900;">إجابات فارغة</div>
+        <div style="font-size:13px;margin-top:8px;">مراجعة الإرسالات التي لا تحتوي على إجابات وحذفها</div>
+      </button>
     </div>
 
     <div id="studentAnswersBrowserView" style="display:none;flex:1;min-height:0;flex-direction:column;">
@@ -1296,11 +1301,12 @@ function backToStudentAnswersCategories() {
   document.getElementById('studentAnswersBrowserView').style.display = 'none';
 }
 async function showStudentAnswersCategory(category) {
-  currentStudentAnswersCategory = category === 'graded' ? 'graded' : 'pending';
+  currentStudentAnswersCategory = ['graded','empty'].includes(category) ? category : 'pending';
   document.getElementById('studentAnswersCategoryView').style.display = 'none';
   document.getElementById('studentAnswersBrowserView').style.display = 'flex';
   document.getElementById('studentAnswersCategoryTitle').textContent =
-    currentStudentAnswersCategory === 'graded' ? '✅ الطلاب الذين تم تصحيحهم' : '📝 الطلاب غير المصححين';
+    currentStudentAnswersCategory === 'graded' ? '✅ الطلاب الذين تم تصحيحهم' :
+    currentStudentAnswersCategory === 'empty' ? '🗑️ الإجابات الفارغة' : '📝 الطلاب غير المصححين';
   await loadAnswerWorksheetFilter();
   await loadStudentAnswers();
 }
@@ -1350,18 +1356,35 @@ async function loadStudentAnswers() {
         data.pointsCredited === true ||
         data.creditStatus === 'credited'
       );
-      return currentStudentAnswersCategory === 'graded' ? isGraded : !isGraded;
+      const answerMap = data.answers && typeof data.answers === 'object' ? data.answers : {};
+      const hasAnyAnswer = Object.values(answerMap).some(value =>
+        value !== null && value !== undefined && String(value).trim() !== ''
+      );
+      if (currentStudentAnswersCategory === 'graded') return isGraded;
+      if (currentStudentAnswersCategory === 'empty') return !hasAnyAnswer && data.pointsCredited !== true;
+      // لا تظهر الإرسالات الفارغة ضمن قائمة التصحيح؛ تظهر في قسم التنظيف المنفصل.
+      return !isGraded && hasAnyAnswer;
     });
     if (!matchingDocs.length) {
       list.innerHTML = currentStudentAnswersCategory === 'graded'
         ? '<div class="empty-message">لا توجد إجابات تم تصحيحها في هذا التصنيف حتى الآن.</div>'
-        : '<div class="empty-message">🎉 لا توجد إجابات غير مصححة حاليًا.</div>';
+        : currentStudentAnswersCategory === 'empty'
+          ? '<div class="empty-message">✅ لا توجد إرسالات فارغة تحتاج إلى تنظيف.</div>'
+          : '<div class="empty-message">🎉 لا توجد إجابات مكتملة غير مصححة حاليًا.</div>';
       return;
     }
     list.innerHTML = '';
     for (const doc of matchingDocs) {
       const a = doc.data();
       const answerMap = a.answers || {};
+      if (currentStudentAnswersCategory === 'empty') {
+        const emptyCard = document.createElement('section');
+        emptyCard.style.cssText = 'border:1px solid #fecaca;border-radius:12px;padding:15px;margin:0 0 12px;background:#fff7f7;display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;';
+        emptyCard.innerHTML = `<div><b style="color:#9f1239;">${safeAnswerText(a.studentName || 'طالب')}</b><div>الصف: ${safeAnswerText(a.studentClass || '—')} | الورقة: ${safeAnswerText(a.worksheetTitle || '—')}</div><small style="color:#64748b;">إرسال لا يحتوي على إجابات مكتوبة</small></div><button type="button" class="action-btn danger" style="padding:9px 14px;" data-delete-answer="${safeAnswerText(doc.id)}">🗑️ حذف الإرسال الفارغ</button>`;
+        emptyCard.querySelector('[data-delete-answer]').addEventListener('click', () => deleteStudentAnswerSubmission(doc.id, a.studentName || 'الطالب'));
+        list.appendChild(emptyCard);
+        continue;
+      }
       const worksheetDoc = await firestoreDb.collection('worksheets').doc(a.worksheetId).get();
       const worksheetData = worksheetDoc.exists ? worksheetDoc.data() : {};
       let answerKey = {};
@@ -1426,10 +1449,15 @@ async function loadStudentAnswers() {
           <div style="font-weight:bold;color:#1e40af;margin-bottom:6px;">✏️ يمكنك تعديل درجة كل سؤال قبل الاعتماد</div>
           <small style="color:#475569;">غيّر الدرجة من 0 إلى 10 لكل سؤال. سيتم جمع الدرجات تلقائيًا، ولن تُرسل النقاط إلا بعد الضغط على زر الاعتماد.</small>
         </div>
-        <div style="display:flex;justify-content:flex-end;margin-top:12px;">
+        <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:12px;">
+          <button type="button" class="action-btn danger" data-delete-answer="${safeAnswerText(doc.id)}">🗑️ حذف هذه الإجابة</button>
           <button class="action-btn success" onclick="saveAutomaticStudentScore('${doc.id}',${JSON.stringify(correctFields).replace(/"/g,'&quot;')},${Object.keys(answerMap).length*10})">✅ اعتماد الدرجة المعدلة وإرسال النقاط</button>
         </div>`;
       list.appendChild(card);
+      const deleteAnswerButton = card.querySelector('[data-delete-answer]');
+      if (deleteAnswerButton) {
+        deleteAnswerButton.addEventListener('click', () => deleteStudentAnswerSubmission(doc.id, a.studentName || 'الطالب'));
+      }
       card.querySelectorAll('.answer-question-grade').forEach(input => {
         input.addEventListener('input', () => recalculateStudentAnswerScore(doc.id));
         input.addEventListener('change', () => recalculateStudentAnswerScore(doc.id));
@@ -1439,6 +1467,19 @@ async function loadStudentAnswers() {
     list.innerHTML = '<div class="error">تعذر قراءة إجابات الطلاب: '+safeAnswerText(e.message || e)+'</div>';
   }
 }
+async function deleteStudentAnswerSubmission(answerId, studentName) {
+  if (!answerId) return;
+  if (!confirm('هل تريد حذف إرسال إجابة الطالب ' + studentName + ' نهائيًا؟ لا يمكن التراجع عن هذا الإجراء.')) return;
+  try {
+    await firestoreDb.collection('student_answers').doc(answerId).delete();
+    alert('✅ تم حذف الإرسال.');
+    await loadStudentAnswers();
+  } catch (error) {
+    console.error('تعذر حذف إجابة الطالب:', error);
+    alert('تعذر حذف الإرسال. تحقق من صلاحيات Firestore: ' + (error.message || error));
+  }
+}
+
 function recalculateStudentAnswerScore(answerId) {
   const card = document.getElementById('answer-card-' + answerId);
   if (!card) return;
