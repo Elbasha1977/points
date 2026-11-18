@@ -1296,7 +1296,25 @@ window.showStudentHomeworkHonorBoard = async function(period) {
   const cls = document.getElementById('stClass')?.value || window.currentStudentIdentity?.studentClass || '';
   const name = document.getElementById('stName')?.value || window.currentStudentIdentity?.studentName || '';
   const pin = (document.getElementById('stPin')?.value || '').trim();
-  const box = document.getElementById('studentHomeworkHonorBoard') || document.getElementById('studentHomeworkHonorBoardSuccess') || document.getElementById('myHomeworkResults');
+
+  // اختر صندوق العرض الموجود داخل القسم الظاهر فعلياً.
+  // لا نستخدم أول ID مباشرة لأن صناديق الأقسام الأخرى موجودة في DOM وهي مخفية.
+  const isVisible = (el) => {
+    if (!el) return false;
+    const style = window.getComputedStyle(el);
+    return style.display !== 'none' && style.visibility !== 'hidden' &&
+           el.getClientRects().length > 0;
+  };
+  const successSection = document.getElementById('stSuccess');
+  const submitSection = document.getElementById('stSubmitArea');
+  let box = null;
+  if (isVisible(successSection)) {
+    box = document.getElementById('studentHomeworkHonorBoardSuccess');
+  } else if (isVisible(submitSection)) {
+    box = document.getElementById('studentHomeworkHonorBoard');
+  } else {
+    box = document.getElementById('myHomeworkResults');
+  }
   if (!box) return;
   box.style.display = 'block';
   if (!cls || !name) {
