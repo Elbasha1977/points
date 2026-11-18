@@ -259,13 +259,6 @@ body { background: linear-gradient(135deg, #dbeafe, #c7d2fe); padding: 20px; min
                 <button class="action-btn success" onclick="saveLiveWorksheet()" style="padding: 10px 20px;">💾 حفظ الورقة</button>
                 <button class="action-btn danger" onclick="showLwsList()" style="padding: 10px 20px;">إلغاء</button>
             </div>
-            <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px;margin-bottom:12px;">
-                <label style="display:flex;gap:8px;align-items:center;font-weight:bold;color:#1e3a8a;"><input type="checkbox" id="lwsTimingEnabled"> تفعيل توقيت الاختبار</label>
-                <label style="display:flex;gap:6px;align-items:center;">يفتح في: <input type="datetime-local" id="lwsOpensAt" style="padding:7px;border:1px solid #cbd5e1;border-radius:7px;"></label>
-                <label style="display:flex;gap:6px;align-items:center;">الإغلاق النهائي: <input type="datetime-local" id="lwsClosesAt" style="padding:7px;border:1px solid #cbd5e1;border-radius:7px;"></label>
-                <label style="display:flex;gap:6px;align-items:center;">مدة الطالب (دقيقة): <input type="number" id="lwsDurationMinutes" min="1" max="600" value="30" style="width:85px;padding:7px;border:1px solid #cbd5e1;border-radius:7px;"></label>
-                <small style="color:#475569;width:100%;">يبدأ عداد الطالب عند ضغط «ابدأ الإجابة». يغلق الاختبار نهائيًا في الموعد المحدد. اترك التفعيل دون تحديد للإبقاء على الورقة بلا توقيت.</small>
-            </div>
             <div style="display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap;">
                 <span style="font-weight: bold; padding: 5px;">إضافة حقل:</span>
                 <button class="lws-tool-btn" onclick="addField('short_text')">📝 نص قصير</button>
@@ -816,10 +809,6 @@ function showCreateWorksheet() {
     document.getElementById('lwsEditorView').style.display = 'flex';
     document.getElementById('lwsTitle').value = '';
     document.getElementById('lwsTemplateSelect').value = '';
-    document.getElementById('lwsTimingEnabled').checked = false;
-    document.getElementById('lwsOpensAt').value = '';
-    document.getElementById('lwsClosesAt').value = '';
-    document.getElementById('lwsDurationMinutes').value = '30';
     document.getElementById('lwsUploadArea').style.display = 'block';
     document.getElementById('lwsWorkspace').style.display = 'none';
     document.getElementById('lwsFieldsLayer').innerHTML = '';
@@ -984,18 +973,6 @@ async function saveLiveWorksheet() {
     if (!title) return alert('أدخل عنوان الورقة.');
     if (!currentLwsImageFile) return alert('ارفع صورة الورقة أولاً.');
     if (currentLwsFields.length === 0) return alert('أضف حقول إجابة.');
-    const timingEnabled = document.getElementById('lwsTimingEnabled').checked;
-    const opensValue = document.getElementById('lwsOpensAt').value;
-    const closesValue = document.getElementById('lwsClosesAt').value;
-    const durationMinutes = Number(document.getElementById('lwsDurationMinutes').value);
-    let opensAt = null, closesAt = null;
-    if (timingEnabled) {
-        if (!opensValue || !closesValue || !Number.isFinite(durationMinutes) || durationMinutes < 1 || durationMinutes > 600)
-            return alert('حدد موعد الفتح والإغلاق ومدة صحيحة من 1 إلى 600 دقيقة.');
-        opensAt = new Date(opensValue); closesAt = new Date(closesValue);
-        if (!Number.isFinite(opensAt.getTime()) || !Number.isFinite(closesAt.getTime()) || closesAt <= opensAt)
-            return alert('موعد الإغلاق يجب أن يكون بعد موعد الفتح.');
-    }
     // إعداد مفتاح الإجابة من المعلم لكل حقل قبل حفظ الورقة
     const answerKey = {};
     for (let questionIndex = 0; questionIndex < currentLwsFields.length; questionIndex++) {
@@ -1037,13 +1014,7 @@ async function saveLiveWorksheet() {
             editorImageHeight: document.getElementById('lwsBaseImage').clientHeight || 0,
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
             createdBy: firebaseCurrentUser.uid,
-            schoolId: tenantId,
-            timingEnabled: timingEnabled,
-            ...(timingEnabled ? {
-                opensAt: firebase.firestore.Timestamp.fromDate(opensAt),
-                closesAt: firebase.firestore.Timestamp.fromDate(closesAt),
-                durationMinutes: durationMinutes
-            } : {})
+            schoolId: tenantId
         });
 
         // مفتاح الإجابة في مستند منفصل لا يقرأه الطالب.
@@ -1111,8 +1082,6 @@ setTimeout(() => {
             </div>
             
             <div class="section" id="stWorkspace" style="display:none; position:relative; text-align:center; padding:20px; background:#f1f5f9; overflow:auto;">
-                <div id="stTimerPanel" style="display:none;position:sticky;top:6px;z-index:20;background:#1e3a8a;color:white;padding:12px;border-radius:10px;margin:0 auto 14px;max-width:360px;font-size:20px;font-weight:900;">⏳ الوقت المتبقي: <span id="stTimerValue">--:--</span></div>
-                <div id="stTimingMessage" style="display:none;color:#b91c1c;font-weight:bold;margin-bottom:10px;"></div>
                 <div style="position:relative; display:inline-block;" id="stImgContainer">
                     <img id="stImg" style="max-width:100%; display:block; border-radius:10px;" alt="صورة ورقة العمل">
                     <div id="stFields" style="position:absolute; top:0; left:0; width:100%; height:100%;"></div>
@@ -1177,91 +1146,90 @@ async function homeworkSha256(value) {
 function homeworkNormalizeName(value) {
     return String(value || '').trim().replace(/\s+/g,' ').toLowerCase();
 }
-window.__worksheetTimerHandle = null;
-window.__worksheetTimeExpired = false;
-function stopStudentWorksheetTimer(){
-    if(window.__worksheetTimerHandle){clearInterval(window.__worksheetTimerHandle);window.__worksheetTimerHandle=null;}
-}
-function runStudentWorksheetTimer(expiresAtMillis){
-    stopStudentWorksheetTimer();
-    const panel=document.getElementById('stTimerPanel');
-    const value=document.getElementById('stTimerValue');
-    if(!panel||!value||!Number.isFinite(Number(expiresAtMillis)))return;
-    panel.style.display='block';
-    const tick=()=>{
-        const left=Math.max(0,Math.ceil((Number(expiresAtMillis)-Date.now())/1000));
-        value.textContent=String(Math.floor(left/60)).padStart(2,'0')+':'+String(left%60).padStart(2,'0');
-        if(left<=0){
-            stopStudentWorksheetTimer();
-            window.__worksheetTimeExpired=true;
-            const msg=document.getElementById('stTimingMessage');
-            if(msg){msg.style.display='block';msg.textContent='انتهى وقت المحاولة. جارٍ إرسال إجاباتك تلقائيًا.';}
-            window.submitStudentAnswers(true);
-        }
-    };
-    tick();window.__worksheetTimerHandle=setInterval(tick,1000);
-}
 window.startStudentWorksheet = async function() {
     const cls = document.getElementById('stClass').value;
     const name = document.getElementById('stName').value;
     const pin = (document.getElementById('stPin') && document.getElementById('stPin').value || '').trim();
-    const startBtn=document.getElementById('stStartBtn');
     if(!cls || !name) return alert('الرجاء اختيار الصف واسم الطالب من القائمة');
     if(!/^\d{4}$/.test(pin)) return alert('أدخل الرقم السري المكوّن من 4 أرقام.');
-    if(!window.currentStudentWorksheet || !window.currentStudentWorksheet.imageUrl) return alert('لم يتم تحميل صورة ورقة العمل بعد. يرجى تحديث الصفحة والمحاولة مرة أخرى.');
+    if(!window.currentStudentWorksheet || !window.currentStudentWorksheet.imageUrl) {
+        return alert('لم يتم تحميل صورة ورقة العمل بعد. يرجى تحديث الصفحة والمحاولة مرة أخرى.');
+    }
+
     const schoolId = String(window.currentStudentWorksheet.schoolId || 'global');
     const studentKey = await homeworkSha256(schoolId + '|' + cls + '|' + homeworkNormalizeName(name));
     const pinHash = await homeworkSha256(studentKey + '|' + pin);
+    // تحقق من الرقم السري في Firebase قبل فتح الورقة.
+    // قواعد Firestore تشترط worksheetId وتستخدمه لفحص قفل الإرسال.
     const worksheetId = new URLSearchParams(window.location.search).get('id');
-    if (!worksheetId) return alert('تعذر تحديد ورقة العمل. افتح الرابط المرسل من المعلم مرة أخرى.');
-    if(startBtn){startBtn.disabled=true;startBtn.textContent='⏳ جارٍ التحقق من الموعد والرقم السري...';}
-    try {
-        // هذه الكتابة تخضع لقواعد validStudentPin الحالية؛ الخادم لا يقبل محاولة بلا إثبات PIN صحيح.
-        await firestoreDb.collection('student_pin_checks').add({
-            schoolId,studentKey,studentName:name,studentClass:cls,worksheetId,studentPinHash:pinHash,
-            createdAt:firebase.firestore.FieldValue.serverTimestamp()
-        });
-        const callable=firebase.app().functions('us-central1').httpsCallable('startStudentWorksheetAttempt');
-        const response=await callable({worksheetId,schoolId,studentKey,pinHash,studentName:name,studentClass:cls});
-        const result=response&&response.data?response.data:{};
-        if(result.success!==true)throw new Error('لم يؤكد الخادم بدء المحاولة.');
-        window.currentStudentIdentity={schoolId,studentKey,pinHash,studentName:name,studentClass:cls};
-        window.currentStudentAttemptId=String(result.attemptId||'');
-        window.__worksheetTimeExpired=false;
-        document.getElementById('stInfoForm').style.display='none';
-        document.getElementById('stWorkspace').style.display='block';
-        document.getElementById('stSubmitArea').style.display='block';
-        if(result.expiresAtMillis)runStudentWorksheetTimer(Number(result.expiresAtMillis));
-        const img=document.getElementById('stImg');
-        img.onload=()=>{
-            const fieldsDiv=document.getElementById('stFields');fieldsDiv.innerHTML='';
-            window.currentStudentWorksheet.fields.forEach(f=>{
-                const el=document.createElement('div');
-                const renderedImage=document.getElementById('stImg');
-                const editorWidth=Number(window.currentStudentWorksheet.editorImageWidth||0);
-                const scale=(renderedImage&&editorWidth>0)?renderedImage.clientWidth/editorWidth:1;
-                const fieldWidth=Number(f.wPct)>0?f.wPct+'%':(Number(f.w||0)*scale)+'px';
-                const fieldHeight=Number(f.hPct)>0?f.hPct+'%':(Number(f.h||0)*scale)+'px';
-                el.style.cssText=`position:absolute;box-sizing:border-box;background:#fef08a;border:2px dashed #ca8a04;border-radius:5px;display:flex;align-items:center;justify-content:center;left:${f.x}%;top:${f.y}%;width:${fieldWidth};height:${fieldHeight};max-width:100%;overflow:hidden;`;
-                let inputHtml='';
-                if(f.type==='short_text')inputHtml=`<input type="text" id="${f.id}" style="box-sizing:border-box;width:100%;height:100%;min-width:0;border:none;background:transparent;text-align:center;font-weight:bold;outline:none;font-size:clamp(10px,2.5vw,16px);">`;
-                else if(f.type==='long_text')inputHtml=`<textarea id="${f.id}" style="box-sizing:border-box;width:100%;height:100%;min-width:0;border:none;background:transparent;resize:none;outline:none;padding:3px;font-size:clamp(10px,2.5vw,16px);"></textarea>`;
-                else inputHtml=`<input type="text" id="${f.id}" style="box-sizing:border-box;width:100%;height:100%;min-width:0;border:none;background:transparent;text-align:center;font-weight:bold;outline:none;font-size:clamp(10px,2.5vw,16px);">`;
-                el.innerHTML=inputHtml;fieldsDiv.appendChild(el);
-            });
-        };
-        img.onerror=()=>{
-            stopStudentWorksheetTimer();document.getElementById('stWorkspace').style.display='none';document.getElementById('stSubmitArea').style.display='none';document.getElementById('stInfoForm').style.display='block';
-            document.getElementById('stTitle').innerText='❌ تعذر عرض الصورة. تحقق من رابط الصورة وصلاحيات Firebase Storage.';
-            alert('تعذر تحميل صورة الورقة. قد يكون رابط Firebase Storage غير صالح أو لا يسمح بالوصول.');
-        };
-        img.src=window.currentStudentWorksheet.imageUrl;
-    } catch(error) {
-        console.error('Student worksheet start error:',error);
-        alert(error.message||'تعذر بدء الاختبار.');
-        if(startBtn){startBtn.disabled=false;startBtn.textContent='🚀 ابدأ الإجابة';}
+    if (!worksheetId) {
+        alert('تعذر تحديد ورقة العمل. افتح الرابط المرسل من المعلم مرة أخرى.');
+        return;
     }
-};
+    try {
+        await firestoreDb.collection('student_pin_checks').add({
+            schoolId: schoolId,
+            studentKey: studentKey,
+            studentName: name,
+            studentClass: cls,
+            worksheetId: worksheetId,
+            studentPinHash: pinHash,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+    } catch(pinError) {
+        console.warn('Student PIN validation failed:', {
+            code: pinError && pinError.code,
+            message: pinError && pinError.message,
+            schoolId: schoolId,
+            studentKey: studentKey,
+            studentClass: cls,
+            worksheetId: worksheetId
+        });
+        const msg = String((pinError && pinError.message) || '');
+        if (msg.includes('permission') || (pinError && pinError.code === 'permission-denied')) {
+            alert('تعذر التحقق من الرقم. تأكد أن المدير أنشأ رقمك لهذا الصف والمدرسة، وأن قواعد Firestore المحدّثة منشورة. إذا سبق أن أرسلت هذه الورقة فسيمنعك النظام من إرسالها مرة أخرى.');
+        } else {
+            alert('تعذر التحقق من الرقم السري. راجع المعلم للتأكد من إنشاء رقمك، ثم حاول مرة أخرى.');
+        }
+        return;
+    }
+    window.currentStudentIdentity = { schoolId, studentKey, pinHash, studentName: name, studentClass: cls };
+    document.getElementById('stInfoForm').style.display = 'none';
+    document.getElementById('stWorkspace').style.display = 'block';
+    document.getElementById('stSubmitArea').style.display = 'block';
+
+    const img = document.getElementById('stImg');
+    // تثبيت معالج التحميل قبل تعيين رابط الصورة، وعدم فرض CORS على عرض الصورة.
+    img.onload = () => {
+        const fieldsDiv = document.getElementById('stFields');
+        fieldsDiv.innerHTML = '';
+        window.currentStudentWorksheet.fields.forEach(f => {
+            const el = document.createElement('div');
+            const renderedImage = document.getElementById('stImg');
+            const editorWidth = Number(window.currentStudentWorksheet.editorImageWidth || 0);
+            const scale = (renderedImage && editorWidth > 0) ? renderedImage.clientWidth / editorWidth : 1;
+            const fieldWidth = Number(f.wPct) > 0 ? f.wPct + '%' : (Number(f.w || 0) * scale) + 'px';
+            const fieldHeight = Number(f.hPct) > 0 ? f.hPct + '%' : (Number(f.h || 0) * scale) + 'px';
+            el.style.cssText = `position:absolute; box-sizing:border-box; background:#fef08a; border:2px dashed #ca8a04; border-radius:5px; display:flex; align-items:center; justify-content:center; left:${f.x}%; top:${f.y}%; width:${fieldWidth}; height:${fieldHeight}; max-width:100%; overflow:hidden;`;
+
+            let inputHtml = '';
+            if(f.type === 'short_text') inputHtml = `<input type="text" id="${f.id}" style="box-sizing:border-box;width:100%;height:100%;min-width:0;border:none;background:transparent;text-align:center;font-weight:bold;outline:none;font-size:clamp(10px,2.5vw,16px);">`;
+            else if(f.type === 'long_text') inputHtml = `<textarea id="${f.id}" style="box-sizing:border-box;width:100%;height:100%;min-width:0;border:none;background:transparent;resize:none;outline:none;padding:3px;font-size:clamp(10px,2.5vw,16px);"></textarea>`;
+            else inputHtml = `<input type="text" id="${f.id}" style="box-sizing:border-box;width:100%;height:100%;min-width:0;border:none;background:transparent;text-align:center;font-weight:bold;outline:none;font-size:clamp(10px,2.5vw,16px);">`;
+
+            el.innerHTML = inputHtml;
+            fieldsDiv.appendChild(el);
+        });
+    };
+    img.onerror = () => {
+        document.getElementById('stWorkspace').style.display = 'none';
+        document.getElementById('stSubmitArea').style.display = 'none';
+        document.getElementById('stInfoForm').style.display = 'block';
+        document.getElementById('stTitle').innerText = '❌ تعذر عرض الصورة. تحقق من رابط الصورة وصلاحيات Firebase Storage.';
+        alert('تعذر تحميل صورة الورقة. قد يكون رابط Firebase Storage غير صالح أو لا يسمح بالوصول.');
+    };
+    img.src = window.currentStudentWorksheet.imageUrl;
+}
 
 window.showMyHomeworkResults = async function(){
  const cls=document.getElementById('stClass').value, name=document.getElementById('stName').value;
@@ -1289,39 +1257,85 @@ window.showMyHomeworkResults = async function(){
 };
 function safeStudentResult(v){return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 
-window.submitStudentAnswers = async function(autoSubmit=false) {
-    const identity=window.currentStudentIdentity;
-    if(!identity||!identity.studentKey||!identity.pinHash||!window.currentStudentAttemptId){alert('انتهت جلسة التحقق. ارجع وأدخل الصف والاسم والرقم السري مرة أخرى.');return;}
-    const btn=document.querySelector('#stSubmitArea button');
-    const fields=Array.isArray(window.currentStudentWorksheet&&window.currentStudentWorksheet.fields)?window.currentStudentWorksheet.fields:[];
-    if(!fields.length){alert('لا يمكن إرسال الواجب؛ لم يتم تحميل أسئلته بشكل صحيح.');return;}
-    const answers={},unanswered=[];
-    fields.forEach((f,index)=>{
-        const input=document.getElementById(f.id);const value=input?String(input.value==null?'':input.value).trim():'';
-        answers[f.id]=value;
-        if(!value)unanswered.push(index+1);
-    });
-    if(unanswered.length&&!autoSubmit&&!window.__worksheetTimeExpired){
-        alert('أكمل الإجابة عن جميع الأسئلة أولاً. الأسئلة غير المجابة: '+unanswered.join('، '));
-        const first=document.getElementById(fields[unanswered[0]-1].id);if(first)first.focus();return;
+window.submitStudentAnswers = async function() {
+    const identity = window.currentStudentIdentity;
+    if (!identity || !identity.studentKey || !identity.pinHash) {
+        alert('انتهت جلسة التحقق. ارجع وأدخل الصف والاسم والرقم السري مرة أخرى.');
+        return;
     }
-    if(btn){btn.disabled=true;btn.textContent=autoSubmit?'⏳ انتهى الوقت، جارٍ التسليم...':'⏳ جارٍ إرسال الإجابات...';}
-    try{
-        const callable=firebase.app().functions('us-central1').httpsCallable('submitStudentWorksheetAnswers');
-        const response=await callable({
-            worksheetId:new URLSearchParams(window.location.search).get('id'),
-            attemptId:window.currentStudentAttemptId,schoolId:identity.schoolId,studentKey:identity.studentKey,
-            pinHash:identity.pinHash,studentName:identity.studentName,studentClass:identity.studentClass,answers
+    const btn = document.querySelector('#stSubmitArea button');
+    const fields = Array.isArray(window.currentStudentWorksheet && window.currentStudentWorksheet.fields)
+        ? window.currentStudentWorksheet.fields : [];
+    if (!fields.length) {
+        alert('لا يمكن إرسال الواجب؛ لم يتم تحميل أسئلته بشكل صحيح. أعد فتح الورقة أو تواصل مع المعلم.');
+        return;
+    }
+    const answers = {};
+    const unanswered = [];
+    fields.forEach((f, index) => {
+        const input = document.getElementById(f.id);
+        const value = input ? String(input.value == null ? '' : input.value).trim() : '';
+        if (input) answers[f.id] = value;
+        if (!value) {
+            unanswered.push(index + 1);
+            if (input) {
+                input.style.outline = '2px solid #dc2626';
+                input.style.backgroundColor = '#fef2f2';
+                input.addEventListener('input', function clearMissingMark(){
+                    if (String(input.value || '').trim()) {
+                        input.style.outline = '';
+                        input.style.backgroundColor = 'transparent';
+                        input.removeEventListener('input', clearMissingMark);
+                    }
+                });
+            }
+        }
+    });
+    if (unanswered.length) {
+        alert('لم يتم إرسال الواجب. أكمل الإجابة عن جميع الأسئلة أولاً.\n\nالأسئلة التي لم تتم الإجابة عنها: ' + unanswered.join('، '));
+        const firstMissing = document.getElementById(fields[unanswered[0] - 1].id);
+        if (firstMissing) firstMissing.focus();
+        return;
+    }
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ جارٍ إرسال الإجابات...'; }
+    const worksheetId = new URLSearchParams(window.location.search).get('id');
+    // وثيقة ثابتة لكل طالب وورقة عمل: تمنع الإرسال الثاني حتى من جهاز آخر.
+    const answerDocId = identity.studentKey + '_' + worksheetId;
+    const answerRef = firestoreDb.collection('student_answers').doc(answerDocId);
+    const lockRef = firestoreDb.collection('homework_submission_locks').doc(answerDocId);
+    try {
+        const submissionBatch = firestoreDb.batch();
+        submissionBatch.set(lockRef, {
+            studentKey: identity.studentKey, worksheetId: worksheetId,
+            schoolId: identity.schoolId, studentClass: identity.studentClass,
+            studentName: identity.studentName, studentPinHash: identity.pinHash,
+            lockedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
-        if(!response||!response.data||response.data.success!==true)throw new Error('لم يؤكد الخادم حفظ الإجابات.');
-        stopStudentWorksheetTimer();
-        document.getElementById('stWorkspace').style.display='none';document.getElementById('stSubmitArea').style.display='none';
-        document.getElementById('stSuccess').style.display='block';
+        submissionBatch.set(answerRef, {
+            worksheetId: worksheetId,
+            worksheetTitle: window.currentStudentWorksheet.title,
+            studentName: identity.studentName,
+            studentClass: identity.studentClass,
+            schoolId: identity.schoolId,
+            studentKey: identity.studentKey,
+            studentPinHash: identity.pinHash,
+            answers: answers,
+            submittedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        await submissionBatch.commit();
+        document.getElementById('stWorkspace').style.display = 'none';
+        document.getElementById('stSubmitArea').style.display = 'none';
+        document.getElementById('stSuccess').style.display = 'block';
         document.getElementById('stSuccess').insertAdjacentHTML('beforeend','<p style="color:#166534;font-weight:bold">تم تسجيل إجابتك. لا يمكن إعادة إرسال هذه الورقة مرة أخرى.</p>');
-    }catch(error){
-        console.error('Student answers submit error:',error);
-        alert(error.message||'تعذر إرسال الإجابات.');
-        if(btn){btn.disabled=false;btn.textContent='✅ إرسال الإجابات';}
+    } catch(e) {
+        console.error('Student answers submit error:', e);
+        const msg = String(e && (e.code || e.message) || '');
+        if (msg.includes('permission-denied') || msg.includes('PERMISSION_DENIED')) {
+            alert('لم يتم قبول الإرسال. تأكد من صحة الرقم السري، أو ربما سبق لك إرسال هذه الورقة. يسمح بإرسال واحد فقط لكل طالب ولكل ورقة.');
+        } else {
+            alert('تعذر إرسال الإجابات: ' + (e.message || e));
+        }
+        if (btn) { btn.disabled = false; btn.textContent = '✅ إرسال الإجابات'; }
     }
 }
 
