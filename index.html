@@ -259,6 +259,23 @@ body { background: linear-gradient(135deg, #dbeafe, #c7d2fe); padding: 20px; min
                 <button class="action-btn success" onclick="saveLiveWorksheet()" style="padding: 10px 20px;">💾 حفظ الورقة</button>
                 <button class="action-btn danger" onclick="showLwsList()" style="padding: 10px 20px;">إلغاء</button>
             </div>
+            <div id="lwsScheduleBox" style="background:#eff6ff;border:1px solid #93c5fd;border-radius:12px;padding:14px;margin:0 0 14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;">
+                <div style="grid-column:1/-1;font-weight:900;color:#1e40af;">⏱️ إعدادات توقيت الاختبار</div>
+                <label style="display:flex;align-items:center;gap:8px;font-weight:bold;">
+                    <input type="checkbox" id="lwsTimingEnabled" checked style="width:18px;height:18px;">
+                    تفعيل موعد ومدة للاختبار
+                </label>
+                <label style="font-weight:bold;">موعد فتح الاختبار
+                    <input type="datetime-local" id="lwsOpenAt" style="display:block;width:100%;padding:9px;border:1px solid #cbd5e1;border-radius:8px;margin-top:5px;">
+                </label>
+                <label style="font-weight:bold;">آخر موعد للإغلاق
+                    <input type="datetime-local" id="lwsCloseAt" style="display:block;width:100%;padding:9px;border:1px solid #cbd5e1;border-radius:8px;margin-top:5px;">
+                </label>
+                <label style="font-weight:bold;">مدة الطالب (بالدقائق)
+                    <input type="number" id="lwsDurationMinutes" min="1" max="300" value="30" style="display:block;width:100%;padding:9px;border:1px solid #cbd5e1;border-radius:8px;margin-top:5px;">
+                </label>
+                <small style="grid-column:1/-1;color:#475569;">التوقيت بتوقيت قطر. بعد موعد الإغلاق النهائي لن يستطيع أي طالب فتح الاختبار أو إرسال إجابة جديدة.</small>
+            </div>
             <div style="display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap;">
                 <span style="font-weight: bold; padding: 5px;">إضافة حقل:</span>
                 <button class="lws-tool-btn" onclick="addField('short_text')">📝 نص قصير</button>
@@ -809,11 +826,25 @@ function showCreateWorksheet() {
     document.getElementById('lwsEditorView').style.display = 'flex';
     document.getElementById('lwsTitle').value = '';
     document.getElementById('lwsTemplateSelect').value = '';
+    document.getElementById('lwsTimingEnabled').checked = true;
+    document.getElementById('lwsOpenAt').value = '';
+    document.getElementById('lwsCloseAt').value = '';
+    document.getElementById('lwsDurationMinutes').value = '30';
+    document.getElementById('lwsScheduleBox').style.opacity = '1';
+    document.getElementById('lwsTimingEnabled').onchange = function(){
+        document.getElementById('lwsScheduleBox').style.opacity = this.checked ? '1' : '.55';
+    };
     document.getElementById('lwsUploadArea').style.display = 'block';
     document.getElementById('lwsWorkspace').style.display = 'none';
     document.getElementById('lwsFieldsLayer').innerHTML = '';
     currentLwsFields = []; currentLwsImageFile = null; currentLwsImageUrl = null;
     document.getElementById('lwsFileInput').value = '';
+}
+
+function safeWorksheetText(value) {
+    return String(value == null ? '' : value).replace(/[&<>"']/g, ch => ({
+        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+    }[ch]));
 }
 
 async function loadWorksheetsList() {
@@ -827,8 +858,11 @@ async function loadWorksheetsList() {
             const date = data.createdAt ? new Date(data.createdAt.toDate()).toLocaleDateString('ar-EG') : '—';
             const card = document.createElement('div');
             card.style.cssText = 'background: white; border: 1px solid #cbd5e1; border-radius: 12px; padding: 15px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;';
+            const scheduleLabel = data.timingEnabled === true
+                ? '⏱️ ' + Number(data.durationMinutes || 0) + ' دقيقة | إغلاق: ' + (data.closeAtMs ? new Date(data.closeAtMs).toLocaleString('ar-QA', {timeZone:'Asia/Qatar'}) : '—')
+                : '⏱️ دون توقيت محدد';
             card.innerHTML = `
-                <div><h3 style="margin: 0; color: #1e293b;">${data.title}</h3><span style="font-size: 12px; color: #64748b;">📅 ${date} | 🖱️ ${data.fields ? data.fields.length : 0} حقول</span></div>
+                <div><h3 style="margin: 0; color: #1e293b;">${safeWorksheetText(data.title || 'ورقة عمل')}</h3><span style="font-size: 12px; color: #64748b;">📅 ${date} | 🖱️ ${data.fields ? data.fields.length : 0} حقول | ${scheduleLabel}</span></div>
                 <div style="display: flex; gap: 8px;">
                     <button onclick="copyStudentLink('${doc.id}')" style="background: #0ea5e9; color: white; border: none; padding: 8px 15px; border-radius: 8px; cursor: pointer; font-weight: bold;">🔗 رابط الطالب</button>
                     <button onclick="deleteWorksheet('${doc.id}')" style="background: #ef4444; color: white; border: none; padding: 8px 15px; border-radius: 8px; cursor: pointer; font-weight: bold;">🗑️ حذف</button>
@@ -973,6 +1007,20 @@ async function saveLiveWorksheet() {
     if (!title) return alert('أدخل عنوان الورقة.');
     if (!currentLwsImageFile) return alert('ارفع صورة الورقة أولاً.');
     if (currentLwsFields.length === 0) return alert('أضف حقول إجابة.');
+    const timingEnabled = document.getElementById('lwsTimingEnabled').checked;
+    let scheduleData = { timingEnabled: false, durationMinutes: 0, openAtMs: null, closeAtMs: null, timeZone: 'Asia/Qatar' };
+    if (timingEnabled) {
+        const openValue = document.getElementById('lwsOpenAt').value;
+        const closeValue = document.getElementById('lwsCloseAt').value;
+        const durationMinutes = Number(document.getElementById('lwsDurationMinutes').value);
+        if (!openValue || !closeValue) return alert('حدد تاريخ ووقت فتح الاختبار وموعد إغلاقه النهائي.');
+        if (!Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 300) return alert('مدة الاختبار يجب أن تكون من دقيقة إلى 300 دقيقة.');
+        // datetime-local is interpreted explicitly as Qatar time (UTC+3), not the device timezone.
+        const openAtMs = Date.parse(openValue + ':00+03:00');
+        const closeAtMs = Date.parse(closeValue + ':00+03:00');
+        if (!Number.isFinite(openAtMs) || !Number.isFinite(closeAtMs) || closeAtMs <= openAtMs) return alert('موعد الإغلاق النهائي يجب أن يكون بعد موعد فتح الاختبار.');
+        scheduleData = { timingEnabled: true, durationMinutes, openAtMs, closeAtMs, timeZone: 'Asia/Qatar' };
+    }
     // إعداد مفتاح الإجابة من المعلم لكل حقل قبل حفظ الورقة
     const answerKey = {};
     for (let questionIndex = 0; questionIndex < currentLwsFields.length; questionIndex++) {
@@ -1014,7 +1062,8 @@ async function saveLiveWorksheet() {
             editorImageHeight: document.getElementById('lwsBaseImage').clientHeight || 0,
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
             createdBy: firebaseCurrentUser.uid,
-            schoolId: tenantId
+            schoolId: tenantId,
+            ...scheduleData
         });
 
         // مفتاح الإجابة في مستند منفصل لا يقرأه الطالب.
@@ -1081,6 +1130,11 @@ setTimeout(() => {
                 <div id="myHomeworkResults" style="display:none;margin-top:14px;padding:12px;border-radius:10px;background:#ecfeff;text-align:right"></div>
             </div>
             
+            <div class="section" id="stTimerBox" style="display:none;text-align:center;background:#fff7ed;border:2px solid #fb923c;">
+                <div style="font-weight:900;color:#9a3412;">⏳ الوقت المتبقي</div>
+                <div id="stTimerText" style="font-size:34px;font-weight:900;color:#c2410c;direction:ltr;font-family:monospace;">--:--</div>
+                <div id="stCloseText" style="font-size:12px;color:#7c2d12;margin-top:5px;"></div>
+            </div>
             <div class="section" id="stWorkspace" style="display:none; position:relative; text-align:center; padding:20px; background:#f1f5f9; overflow:auto;">
                 <div style="position:relative; display:inline-block;" id="stImgContainer">
                     <img id="stImg" style="max-width:100%; display:block; border-radius:10px;" alt="صورة ورقة العمل">
@@ -1104,8 +1158,26 @@ setTimeout(() => {
                 window.currentStudentWorksheet = doc.data();
                 document.getElementById('stTitle').innerText = window.currentStudentWorksheet.title || 'ورقة العمل';
                 const startBtn = document.getElementById('stStartBtn');
-                startBtn.disabled = false;
-                startBtn.textContent = '🚀 ابدأ الإجابة';
+                const ws = window.currentStudentWorksheet;
+                if (ws.timingEnabled === true) {
+                    const now = Date.now();
+                    const openAt = Number(ws.openAtMs || 0), closeAt = Number(ws.closeAtMs || 0);
+                    if (openAt && now < openAt) {
+                        startBtn.disabled = true;
+                        startBtn.textContent = 'لم يحن موعد فتح الاختبار';
+                        document.getElementById('stTitle').insertAdjacentHTML('afterend','<p style="margin-top:10px;color:#1d4ed8;font-weight:bold">يفتح الاختبار: '+new Date(openAt).toLocaleString('ar-QA',{timeZone:'Asia/Qatar'})+'</p>');
+                    } else if (closeAt && now >= closeAt) {
+                        startBtn.disabled = true;
+                        startBtn.textContent = 'انتهى موعد الاختبار';
+                        document.getElementById('stTitle').insertAdjacentHTML('afterend','<p style="margin-top:10px;color:#b91c1c;font-weight:bold">أُغلق الاختبار نهائيًا.</p>');
+                    } else {
+                        startBtn.disabled = false;
+                        startBtn.textContent = '🚀 ابدأ الإجابة';
+                    }
+                } else {
+                    startBtn.disabled = false;
+                    startBtn.textContent = '🚀 ابدأ الإجابة';
+                }
             } else {
                 document.getElementById('stTitle').innerText = '❌ الورقة غير موجودة أو تم حذفها';
                 document.getElementById('stStartBtn').textContent = 'الورقة غير متاحة';
@@ -1166,16 +1238,15 @@ window.startStudentWorksheet = async function() {
         alert('تعذر تحديد ورقة العمل. افتح الرابط المرسل من المعلم مرة أخرى.');
         return;
     }
+    let attemptInfo;
     try {
-        await firestoreDb.collection('student_pin_checks').add({
-            schoolId: schoolId,
-            studentKey: studentKey,
-            studentName: name,
-            studentClass: cls,
-            worksheetId: worksheetId,
-            studentPinHash: pinHash,
-            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        const startCall = firebase.app().functions('us-central1').httpsCallable('startStudentWorksheetAttempt');
+        const startResult = await startCall({
+            worksheetId, schoolId, studentKey, studentName: name,
+            studentClass: cls, pinHash
         });
+        attemptInfo = startResult && startResult.data ? startResult.data : null;
+        if (!attemptInfo || attemptInfo.success !== true) throw new Error('تعذر بدء الاختبار.');
     } catch(pinError) {
         console.warn('Student PIN validation failed:', {
             code: pinError && pinError.code,
@@ -1193,11 +1264,10 @@ window.startStudentWorksheet = async function() {
         }
         return;
     }
-    window.currentStudentIdentity = { schoolId, studentKey, pinHash, studentName: name, studentClass: cls };
+    window.currentStudentIdentity = { schoolId, studentKey, pinHash, studentName: name, studentClass: cls, attemptId: attemptInfo.attemptId };
     document.getElementById('stInfoForm').style.display = 'none';
     document.getElementById('stWorkspace').style.display = 'block';
     document.getElementById('stSubmitArea').style.display = 'block';
-
     const img = document.getElementById('stImg');
     // تثبيت معالج التحميل قبل تعيين رابط الصورة، وعدم فرض CORS على عرض الصورة.
     img.onload = () => {
@@ -1220,8 +1290,15 @@ window.startStudentWorksheet = async function() {
             el.innerHTML = inputHtml;
             fieldsDiv.appendChild(el);
         });
+        if (attemptInfo.timed === true) {
+            document.getElementById('stTimerBox').style.display = 'block';
+            document.getElementById('stCloseText').textContent = 'الإغلاق النهائي: ' + new Date(attemptInfo.closeAtMs).toLocaleString('ar-QA',{timeZone:'Asia/Qatar'});
+            startStudentCountdown(Number(attemptInfo.deadlineAtMs), Number(attemptInfo.closeAtMs), Number(attemptInfo.serverNowMs));
+        }
     };
     img.onerror = () => {
+        if (studentTimerInterval) { clearInterval(studentTimerInterval); studentTimerInterval = null; }
+        document.getElementById('stTimerBox').style.display = 'none';
         document.getElementById('stWorkspace').style.display = 'none';
         document.getElementById('stSubmitArea').style.display = 'none';
         document.getElementById('stInfoForm').style.display = 'block';
@@ -1257,7 +1334,38 @@ window.showMyHomeworkResults = async function(){
 };
 function safeStudentResult(v){return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 
-window.submitStudentAnswers = async function() {
+let studentTimerInterval = null;
+let studentTimerDeadlineMs = null;
+let studentTimerCloseMs = null;
+let studentTimerServerOffsetMs = 0;
+function startStudentCountdown(deadlineAtMs, closeAtMs, serverNowMs) {
+    if (studentTimerInterval) clearInterval(studentTimerInterval);
+    studentTimerDeadlineMs = deadlineAtMs;
+    studentTimerCloseMs = closeAtMs;
+    studentTimerServerOffsetMs = Number(serverNowMs || Date.now()) - Date.now();
+    const tick = () => {
+        const now = Date.now() + studentTimerServerOffsetMs;
+        const effectiveEnd = Math.min(studentTimerDeadlineMs || Infinity, studentTimerCloseMs || Infinity);
+        const remaining = Math.max(0, effectiveEnd - now);
+        const totalSeconds = Math.ceil(remaining / 1000);
+        const mm = String(Math.floor(totalSeconds / 60)).padStart(2,'0');
+        const ss = String(totalSeconds % 60).padStart(2,'0');
+        const timer = document.getElementById('stTimerText');
+        if (timer) {
+            timer.textContent = mm + ':' + ss;
+            timer.style.color = totalSeconds <= 60 ? '#dc2626' : '#c2410c';
+        }
+        if (remaining <= 0) {
+            clearInterval(studentTimerInterval);
+            studentTimerInterval = null;
+            submitStudentAnswers(true);
+        }
+    };
+    tick();
+    studentTimerInterval = setInterval(tick, 500);
+}
+
+window.submitStudentAnswers = async function(autoSubmit = false) {
     const identity = window.currentStudentIdentity;
     if (!identity || !identity.studentKey || !identity.pinHash) {
         alert('انتهت جلسة التحقق. ارجع وأدخل الصف والاسم والرقم السري مرة أخرى.');
@@ -1291,7 +1399,7 @@ window.submitStudentAnswers = async function() {
             }
         }
     });
-    if (unanswered.length) {
+    if (unanswered.length && !autoSubmit) {
         alert('لم يتم إرسال الواجب. أكمل الإجابة عن جميع الأسئلة أولاً.\n\nالأسئلة التي لم تتم الإجابة عنها: ' + unanswered.join('، '));
         const firstMissing = document.getElementById(fields[unanswered[0] - 1].id);
         if (firstMissing) firstMissing.focus();
@@ -1299,30 +1407,14 @@ window.submitStudentAnswers = async function() {
     }
     if (btn) { btn.disabled = true; btn.textContent = '⏳ جارٍ إرسال الإجابات...'; }
     const worksheetId = new URLSearchParams(window.location.search).get('id');
-    // وثيقة ثابتة لكل طالب وورقة عمل: تمنع الإرسال الثاني حتى من جهاز آخر.
-    const answerDocId = identity.studentKey + '_' + worksheetId;
-    const answerRef = firestoreDb.collection('student_answers').doc(answerDocId);
-    const lockRef = firestoreDb.collection('homework_submission_locks').doc(answerDocId);
     try {
-        const submissionBatch = firestoreDb.batch();
-        submissionBatch.set(lockRef, {
-            studentKey: identity.studentKey, worksheetId: worksheetId,
-            schoolId: identity.schoolId, studentClass: identity.studentClass,
-            studentName: identity.studentName, studentPinHash: identity.pinHash,
-            lockedAt: firebase.firestore.FieldValue.serverTimestamp()
+        const submitCall = firebase.app().functions('us-central1').httpsCallable('submitStudentWorksheetAnswers');
+        await submitCall({
+            worksheetId, schoolId: identity.schoolId, studentKey: identity.studentKey,
+            studentName: identity.studentName, studentClass: identity.studentClass,
+            pinHash: identity.pinHash, attemptId: identity.attemptId,
+            answers, autoSubmit: autoSubmit === true
         });
-        submissionBatch.set(answerRef, {
-            worksheetId: worksheetId,
-            worksheetTitle: window.currentStudentWorksheet.title,
-            studentName: identity.studentName,
-            studentClass: identity.studentClass,
-            schoolId: identity.schoolId,
-            studentKey: identity.studentKey,
-            studentPinHash: identity.pinHash,
-            answers: answers,
-            submittedAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
-        await submissionBatch.commit();
         document.getElementById('stWorkspace').style.display = 'none';
         document.getElementById('stSubmitArea').style.display = 'none';
         document.getElementById('stSuccess').style.display = 'block';
@@ -1335,7 +1427,11 @@ window.submitStudentAnswers = async function() {
         } else {
             alert('تعذر إرسال الإجابات: ' + (e.message || e));
         }
-        if (btn) { btn.disabled = false; btn.textContent = '✅ إرسال الإجابات'; }
+        if (btn && !autoSubmit) { btn.disabled = false; btn.textContent = '✅ إرسال الإجابات'; }
+        if (autoSubmit) {
+            const timer = document.getElementById('stTimerText');
+            if (timer) timer.textContent = 'انتهى الوقت';
+        }
     }
 }
 
