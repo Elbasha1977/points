@@ -1107,6 +1107,7 @@ setTimeout(() => {
                 </div>
                 <button id="stStartBtn" class="action-btn primary" onclick="startStudentWorksheet()" style="width:100%; font-size:18px;" disabled>⏳ جاري تحميل الورقة...</button>
                 <button type="button" class="action-btn" onclick="showMyHomeworkResults()" style="width:100%;margin-top:10px;background:#0f766e;color:white">🏅 عرض نتائج نقاط واجباتي</button>
+                <button type="button" class="action-btn" onclick="showStudentHomeworkHonorBoard()" style="width:100%;margin-top:10px;background:linear-gradient(135deg,#b45309,#f59e0b);color:white">🏆 لوحة الشرف في واجبات النقاط المنزلية</button>
                 <div id="myHomeworkResults" style="display:none;margin-top:14px;padding:12px;border-radius:10px;background:#ecfeff;text-align:right"></div>
             </div>
             
@@ -1120,11 +1121,15 @@ setTimeout(() => {
             </div>
             <div class="section" id="stSubmitArea" style="display:none; text-align:center;">
                 <button class="action-btn success" onclick="submitStudentAnswers()" style="width:100%; font-size:18px;">✅ إرسال الإجابات</button>
+                <button type="button" class="action-btn" onclick="showStudentHomeworkHonorBoard()" style="width:100%;margin-top:10px;background:linear-gradient(135deg,#b45309,#f59e0b);color:white">🏆 لوحة الشرف في واجبات النقاط المنزلية</button>
+                <div id="studentHomeworkHonorBoard" style="display:none;margin-top:16px;padding:16px;border-radius:16px;background:linear-gradient(135deg,#fffbeb,#fef3c7);text-align:right"></div>
             </div>
             
             <div class="section" id="stSuccess" style="display:none; text-align:center;">
                 <h1 style="font-size:60px; margin:0;">🎉</h1>
                 <h2 style="color:#16a34a;">تم إرسال إجاباتك بنجاح!</h2>
+                <button type="button" class="action-btn" onclick="showStudentHomeworkHonorBoard()" style="width:100%;margin-top:18px;background:linear-gradient(135deg,#b45309,#f59e0b);color:white">🏆 لوحة الشرف في واجبات النقاط المنزلية</button>
+                <div id="studentHomeworkHonorBoardSuccess" style="display:none;margin-top:16px;padding:16px;border-radius:16px;background:linear-gradient(135deg,#fffbeb,#fef3c7);text-align:right"></div>
             </div>
         `;
         document.body.appendChild(studentUI);
@@ -1285,6 +1290,67 @@ window.showMyHomeworkResults = async function(){
  }catch(e){box.innerHTML='<span style="color:#b91c1c">تعذر تحميل النتائج: '+safeStudentResult(e.message||e)+'</span>';}
 };
 function safeStudentResult(v){return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+
+window.showStudentHomeworkHonorBoard = async function(period) {
+  const cls = document.getElementById('stClass')?.value || window.currentStudentIdentity?.studentClass || '';
+  const name = document.getElementById('stName')?.value || window.currentStudentIdentity?.studentName || '';
+  const pin = (document.getElementById('stPin')?.value || '').trim();
+  const box = document.getElementById('studentHomeworkHonorBoard') || document.getElementById('studentHomeworkHonorBoardSuccess') || document.getElementById('myHomeworkResults');
+  if (!box) return;
+  box.style.display = 'block';
+  if (!cls || !name) {
+    box.innerHTML = '<b style="color:#b91c1c">اختر الصف واسمك أولاً.</b>';
+    return;
+  }
+  if (!/^\d{4}$/.test(pin) && !window.currentStudentIdentity?.pinHash) {
+    box.innerHTML = '<b style="color:#b91c1c">أدخل رقمك السري المكوّن من أربعة أرقام للتحقق من هويتك.</b>';
+    return;
+  }
+  const selectedPeriod = period || 'weekly';
+  box.innerHTML = '⏳ جارٍ التحقق من هويتك وتحميل لوحة الشرف...';
+  try {
+    let identity = window.currentStudentIdentity;
+    const schoolId = String((window.currentStudentWorksheet && window.currentStudentWorksheet.schoolId) || identity?.schoolId || 'global');
+    if (!identity || identity.studentClass !== cls || identity.studentName !== name ||
+        (pin && identity.pinHash !== await homeworkSha256(identity.studentKey + '|' + pin))) {
+      const studentKey = await homeworkSha256(schoolId + '|' + cls + '|' + homeworkNormalizeName(name));
+      const pinHash = await homeworkSha256(studentKey + '|' + pin);
+      identity = { schoolId, studentKey, pinHash, studentName: name, studentClass: cls };
+    }
+    const call = firebase.app().functions('us-central1').httpsCallable('getHomeworkHonorBoard');
+    const response = await call({
+      studentMode: true, period: selectedPeriod, classId: cls,
+      schoolId: identity.schoolId, studentKey: identity.studentKey,
+      pinHash: identity.pinHash, studentName: identity.studentName
+    });
+    const data = response?.data || {};
+    if (data.success !== true) throw new Error('لم يؤكد الخادم تحميل لوحة الشرف.');
+    window.currentStudentIdentity = identity;
+    const students = Array.isArray(data.students) ? data.students : [];
+    const periodLabel = selectedPeriod === 'weekly' ? 'الأسبوع الحالي' : selectedPeriod === 'monthly' ? 'الشهر الحالي' : 'الإجمالية';
+    const medals = ['🥇','🥈','🥉'];
+    box.innerHTML = `
+      <div style="text-align:center">
+        <div style="font-size:38px">🏆✨</div>
+        <h3 style="color:#92400e;margin:5px 0 12px">لوحة الشرف في واجبات النقاط المنزلية</h3>
+        <div style="font-weight:bold;color:#78350f;margin-bottom:12px">${periodLabel} — ${safeStudentResult(cls)}</div>
+        <div style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+          <button type="button" onclick="showStudentHomeworkHonorBoard('weekly')" style="padding:9px 14px;border:0;border-radius:10px;background:${selectedPeriod==='weekly'?'#92400e':'#fde68a'};color:${selectedPeriod==='weekly'?'white':'#78350f'};font-weight:bold">الأسبوعية</button>
+          <button type="button" onclick="showStudentHomeworkHonorBoard('monthly')" style="padding:9px 14px;border:0;border-radius:10px;background:${selectedPeriod==='monthly'?'#92400e':'#fde68a'};color:${selectedPeriod==='monthly'?'white':'#78350f'};font-weight:bold">الشهرية</button>
+          <button type="button" onclick="showStudentHomeworkHonorBoard('all')" style="padding:9px 14px;border:0;border-radius:10px;background:${selectedPeriod==='all'?'#92400e':'#fde68a'};color:${selectedPeriod==='all'?'white':'#78350f'};font-weight:bold">الإجمالية</button>
+        </div>
+      </div>
+      ${students.length ? students.map((s,i)=>`<div style="display:flex;align-items:center;gap:10px;padding:10px;margin:7px 0;background:${i===0?'#fef3c7':'white'};border:1px solid ${i===0?'#f59e0b':'#fde68a'};border-radius:12px">
+        <span style="font-size:25px;min-width:32px;text-align:center">${medals[i]||(''+(i+1))}</span>
+        <b style="flex:1">${safeStudentResult(s.name)}</b>
+        <strong style="color:#92400e">${Number(s.points||0)} نقطة</strong>
+      </div>`).join('') : '<div style="text-align:center;padding:16px;background:white;border-radius:12px">لا توجد نقاط واجبات منزلية مسجلة لهذه الفترة حتى الآن.</div>'}
+    `;
+  } catch (error) {
+    box.innerHTML = '<span style="color:#b91c1c">تعذر تحميل لوحة الشرف: '+safeStudentResult(error.message || error)+'</span>';
+  }
+};
 
 window.submitStudentAnswers = async function(autoSubmit=false) {
     const identity=window.currentStudentIdentity;
