@@ -869,12 +869,13 @@ async function migrateLegacyWorksheetAnswerKeys() {
 }
 
 function copyStudentLink(docId) {
-    // نأخذ رابط لوحة المدير الحالي ونضيف عليه ?student=true&id=...
-    const baseUrl = window.location.href.split('?')[0];
-    const url = baseUrl + '?student=true&id=' + docId;
-    
+    // رابط الطالب مستقل عن نطاق لوحة المدير.
+    const url = 'https://student.abuhazem.com/?id=' + encodeURIComponent(docId);
+
     navigator.clipboard.writeText(url).then(() => {
         alert('✅ تم نسخ رابط الطالب:\n' + url);
+    }).catch(() => {
+        prompt('انسخ رابط الطالب:', url);
     });
 }
 async function deleteWorksheet(docId) {
