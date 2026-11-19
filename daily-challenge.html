@@ -141,7 +141,8 @@ async function openApp(user){
  isGlobalAdmin=user.uid===GLOBAL_ADMIN_UID&&profile.role==="admin";
  let classes=[];
  if(isGlobalAdmin){
-   activeSchoolId="global";
+   // نفس معرّف المستأجر الذي تحفظ به لوحة المدير أوراق العمل.
+   activeSchoolId=String(profile.licenseId||profile.schoolId||"global").trim();
    classes=["السادس 2","السادس 4","السادس 6"];
  }else if(profile.role==="staff"){
    activeSchoolId=String(profile.schoolId||"").trim();
