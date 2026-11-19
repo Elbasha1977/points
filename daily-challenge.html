@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#071B3A">
+<title>POINTS | إدارة تحدي اليوم</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-functions-compat.js"></script>
+<style>
+*{box-sizing:border-box;font-family:Tahoma,Arial}
+body{margin:0;padding:18px;background:linear-gradient(135deg,#dbeafe,#e0e7ff);min-height:100vh;color:#172554}
+.wrap{max-width:1050px;margin:auto}
+.header,.card{background:#fff;border-radius:20px;padding:22px;margin-bottom:18px;box-shadow:0 7px 24px #17255414}
+.header{text-align:center}
+h1{color:#4338ca;margin:0 0 8px}
+h2{color:#4338ca;margin:0 0 16px}
+.sub{color:#64748b}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+label{display:block;font-weight:bold;font-size:14px;margin:10px 0 6px}
+input,select,textarea{width:100%;padding:12px;border:1px solid #cbd5e1;border-radius:10px;font-size:15px;background:#fff}
+textarea{min-height:85px;resize:vertical}
+button{border:0;border-radius:11px;padding:12px 17px;font-weight:bold;font-size:15px;cursor:pointer}
+button:disabled{opacity:.55;cursor:not-allowed}
+.primary{background:#4338ca;color:#fff}
+.green{background:#16a34a;color:#fff}
+.gray{background:#e2e8f0;color:#1e293b}
+.gold{background:#f59e0b;color:#422006}
+.red{background:#dc2626;color:#fff}
+.row{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+.row>*{flex:1}
+.notice{padding:12px;border-radius:10px;background:#eff6ff;color:#1e40af;margin:10px 0;white-space:pre-wrap}
+.error{background:#fef2f2;color:#991b1b}
+.success{background:#f0fdf4;color:#166534}
+.option{display:grid;grid-template-columns:1fr 34px;align-items:center;gap:8px;margin:8px 0}
+.option input[type=radio]{width:20px;height:20px}
+.pill{display:inline-block;padding:5px 10px;border-radius:20px;background:#e0e7ff;color:#3730a3;font-size:12px;font-weight:bold}
+.challenge-card{border:1px solid #dbeafe;border-radius:14px;padding:14px;margin:10px 0;background:#f8fafc}
+.challenge-card h3{margin:0 0 8px;color:#1e3a8a}
+.small{font-size:12px;color:#64748b}
+#appView{display:none}
+@media(max-width:600px){body{padding:9px}.header,.card{padding:15px}.row{display:grid;grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+ <div class="header">
+  <div style="font-size:38px">🔥</div>
+  <h1>إدارة تحدي اليوم</h1>
+  <div class="sub">جهّز سؤالًا يوميًا لطلابك، وحدد وقت المشاركة ومكافأة الإجابة الصحيحة</div>
+ </div>
+ <section class="card" id="loginView">
+  <h2>تسجيل الدخول</h2>
+  <p class="sub">استخدم حسابك المعتمد في برنامج POINTS.</p>
+  <label>البريد الإلكتروني</label><input id="email" type="email" autocomplete="username" dir="ltr">
+  <label>كلمة المرور</label><input id="password" type="password" autocomplete="current-password">
+  <button class="primary" id="loginBtn" style="width:100%;margin-top:12px">دخول</button>
+  <div id="loginMsg" class="notice" style="display:none"></div>
+ </section>
+ <main id="appView">
+  <section class="card">
+   <div class="row">
+    <div><b id="userLabel"></b><div class="small" id="roleLabel"></div></div>
+    <button class="gray" id="logoutBtn">تسجيل الخروج</button>
+   </div>
+   <div class="grid">
+    <div><label>الشعبة</label><select id="classId"></select></div>
+    <div><label>تاريخ التحدي</label><input id="dateKey" type="date"></div>
+   </div>
+   <div class="row" style="margin-top:12px">
+    <button class="gray" id="refreshBtn">تحديث التحديات</button>
+    <button class="gray" id="copyStudentLinkBtn">نسخ رابط دخول الطلاب</button>
+   </div>
+   <div id="statusMsg" class="notice" style="display:none"></div>
+  </section>
+  <section class="card">
+   <h2>إنشاء تحدي جديد</h2>
+   <label>عنوان التحدي</label><input id="title" maxlength="100" value="تحدي اليوم">
+   <label>السؤال</label><textarea id="question" maxlength="500" placeholder="اكتب سؤال اليوم هنا..."></textarea>
+   <label>الاختيارات — حدد الدائرة بجوار الإجابة الصحيحة</label>
+   <div id="optionsHost">
+    <div class="option"><input id="optA" maxlength="160" placeholder="الاختيار الأول"><input type="radio" name="correct" value="A" aria-label="صحيح"></div>
+    <div class="option"><input id="optB" maxlength="160" placeholder="الاختيار الثاني"><input type="radio" name="correct" value="B" aria-label="صحيح"></div>
+    <div class="option"><input id="optC" maxlength="160" placeholder="الاختيار الثالث (اختياري)"><input type="radio" name="correct" value="C" aria-label="صحيح"></div>
+    <div class="option"><input id="optD" maxlength="160" placeholder="الاختيار الرابع (اختياري)"><input type="radio" name="correct" value="D" aria-label="صحيح"></div>
+   </div>
+   <label>تفسير الإجابة (يظهر بعد التسليم فقط)</label><textarea id="explanation" maxlength="500" placeholder="شرح قصير يساعد الطالب على التعلم..."></textarea>
+   <div class="grid">
+    <div><label>النقاط عند الإجابة الصحيحة</label><input id="rewardPoints" type="number" min="1" max="100" value="5"></div>
+    <div><label>مدة المحاولة بالثواني</label><input id="durationSeconds" type="number" min="15" max="300" value="60"></div>
+   </div>
+   <div class="grid">
+    <div><label>وقت فتح التحدي (توقيت قطر)</label><input id="openTime" type="time" value="07:00"></div>
+    <div><label>وقت الإغلاق (توقيت قطر)</label><input id="closeTime" type="time" value="14:00"></div>
+   </div>
+   <label style="display:flex;align-items:center;gap:9px"><input id="active" type="checkbox" checked style="width:20px"> نشر التحدي للطلاب</label>
+   <div class="row" style="margin-top:14px">
+    <button class="primary" id="saveBtn">💾 حفظ ونشر التحدي</button>
+    <button class="gray" id="clearBtn">تفريغ النموذج</button>
+   </div>
+   <p class="small">يمكن إعداد تحدٍ لليوم أو خلال الثلاثين يومًا القادمة. بعد بدء أول محاولة طالب، يُقفل السؤال وإجابته لمنع تغيير نتيجة التحدي.</p>
+  </section>
+  <section class="card">
+   <h2>التحديات السابقة والقادمة</h2>
+   <div id="challengeList" class="sub">اختر الشعبة لعرض التحديات.</div>
+  </section>
+ </main>
+</div>
+<script>
+const firebaseConfig = {
+ apiKey:"AIzaSyCAeHOVGUpG7WcPcUh0XtBvmTwLGdcBCJE",
+ authDomain:"school-points-qatar.firebaseapp.com",
+ projectId:"school-points-qatar",
+ storageBucket:"school-points-qatar.firebasestorage.app",
+ messagingSenderId:"689880020347",
+ appId:"1:689880020347:web:24305b6f89ac3448acb9de"
+};
+if(!firebase.apps.length)firebase.initializeApp(firebaseConfig);
+const auth=firebase.auth(), db=firebase.firestore(), functions=firebase.app().functions("us-central1");
+const GLOBAL_ADMIN_UID="hwPgzTQbdfUJa45G2Wwc79ANNJE2";
+let currentUser=null, profile=null, isGlobalAdmin=false, activeSchoolId="";
+const $=id=>document.getElementById(id);
+function qatarDate(){
+ return new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Qatar",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
+}
+function msg(text,type="notice"){
+ const el=$("statusMsg");el.className="notice "+(type==="error"?"error":type==="success"?"success":"");el.textContent=text;el.style.display="block";
+}
+function loginMsg(text,isError=true){const el=$("loginMsg");el.textContent=text;el.className="notice "+(isError?"error":"");el.style.display="block";}
+function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+function callable(name){return functions.httpsCallable(name);}
+async function openApp(user){
+ currentUser=user;
+ const snap=await db.collection("users").doc(user.uid).get();
+ if(!snap.exists)throw new Error("حساب المستخدم غير موجود في النظام.");
+ profile=snap.data()||{};
+ if(profile.active!==true||profile.approved!==true)throw new Error("الحساب غير نشط أو غير معتمد.");
+ isGlobalAdmin=user.uid===GLOBAL_ADMIN_UID&&profile.role==="admin";
+ let classes=[];
+ if(isGlobalAdmin){
+   activeSchoolId="global";
+   classes=["السادس 2","السادس 4","السادس 6"];
+ }else if(profile.role==="staff"){
+   activeSchoolId=String(profile.schoolId||"").trim();
+   classes=Array.isArray(profile.classIds)?profile.classIds.map(x=>String(x).trim()).filter(Boolean):[];
+   if(!activeSchoolId||!classes.length)throw new Error("لا توجد شعب مسندة إلى حسابك.");
+ }else{
+   throw new Error("إدارة التحديات متاحة للمدير العام والمعلمين المعتمدين فقط.");
+ }
+ $("classId").innerHTML=classes.map(x=>'<option value="'+esc(x)+'">'+esc(x)+'</option>').join("");
+ $("userLabel").textContent=user.email||"حساب POINTS";
+ $("roleLabel").textContent=isGlobalAdmin?"المدير العام":"المعلم — "+esc(profile.schoolName||"");
+ $("dateKey").value=qatarDate();
+ $("loginView").style.display="none";$("appView").style.display="block";
+ await loadChallenges();
+}
+async function loadChallenges(){
+ const cls=$("classId").value;if(!cls)return;
+ $("challengeList").textContent="⏳ جارٍ تحميل التحديات...";
+ try{
+   const res=await callable("listDailyChallenges")({classId:cls,schoolId:activeSchoolId});
+   const rows=res.data?.challenges||[];
+   if(!rows.length){$("challengeList").innerHTML='<div class="notice">لم يتم إعداد تحديات لهذه الشعبة بعد.</div>';return;}
+   $("challengeList").innerHTML=rows.map(x=>{
+     const labels=x.options.map(o=>'<li>'+esc(o.text)+(o.id===x.correctOptionId?' <b style="color:#15803d">(الإجابة الصحيحة)</b>':'')+'</li>').join("");
+     return '<div class="challenge-card"><div class="row"><h3>'+esc(x.dateKey)+' — '+esc(x.title)+'</h3><span class="pill">'+(x.active?'منشور':'متوقف')+'</span></div><p>'+esc(x.question)+'</p><ol>'+labels+'</ol><div class="small">المكافأة: '+Number(x.rewardPoints)+' نقطة · المحاولات التي بدأت: '+Number(x.attemptsStarted)+'</div>'+(Number(x.attemptsStarted)>0?'<div class="small" style="color:#b45309;margin-top:6px">بدأ الطلاب المشاركة؛ التعديل مقفل حفاظًا على نزاهة النتائج.</div>':'')+'</div>';
+   }).join("");
+ }catch(e){$("challengeList").textContent="تعذر تحميل التحديات: "+(e.message||e);}
+}
+function clearForm(){
+ $("title").value="تحدي اليوم";$("question").value="";$("explanation").value="";
+ ["A","B","C","D"].forEach((id,i)=>$("opt"+id).value="");
+ document.querySelectorAll('input[name="correct"]').forEach(x=>x.checked=false);
+ $("rewardPoints").value=5;$("durationSeconds").value=60;$("openTime").value="07:00";$("closeTime").value="14:00";$("active").checked=true;
+}
+async function saveChallenge(){
+ const classId=$("classId").value, dateKey=$("dateKey").value;
+ const options=["A","B","C","D"].map(id=>({id,text:$("opt"+id).value.trim()})).filter(x=>x.text);
+ const correctOptionId=document.querySelector('input[name="correct"]:checked')?.value||"";
+ if(options.length<2){msg("أدخل اختيارين على الأقل.","error");return;}
+ if(!options.some(x=>x.id===correctOptionId)){msg("حدد الإجابة الصحيحة بالنقر على الدائرة بجوار الاختيار.","error");return;}
+ const payload={
+  classId,schoolId:activeSchoolId,dateKey,title:$("title").value.trim(),
+  question:$("question").value.trim(),options,correctOptionId,
+  explanation:$("explanation").value.trim(),rewardPoints:Number($("rewardPoints").value),
+  durationSeconds:Number($("durationSeconds").value),openTime:$("openTime").value,
+  closeTime:$("closeTime").value,active:$("active").checked
+ };
+ if(!payload.question){msg("اكتب نص السؤال أولاً.","error");return;}
+ $("saveBtn").disabled=true;$("saveBtn").textContent="⏳ جارٍ الحفظ...";
+ try{
+  const res=await callable("saveDailyChallenge")(payload);
+  msg(res.data?.active?"تم حفظ التحدي ونشره بنجاح.":"تم حفظ التحدي وإيقاف نشره.", "success");
+  await loadChallenges();
+ }catch(e){msg(e.message||"تعذر حفظ التحدي.","error");}
+ finally{$("saveBtn").disabled=false;$("saveBtn").textContent="💾 حفظ ونشر التحدي";}
+}
+$("loginBtn").addEventListener("click",async()=>{
+ try{await auth.signInWithEmailAndPassword($("email").value.trim(),$("password").value);}
+ catch(e){loginMsg(e.message||"تعذر تسجيل الدخول.");}
+});
+$("password").addEventListener("keydown",e=>{if(e.key==="Enter")$("loginBtn").click();});
+$("logoutBtn").addEventListener("click",()=>auth.signOut());
+$("classId").addEventListener("change",loadChallenges);
+$("dateKey").addEventListener("change",loadChallenges);
+$("refreshBtn").addEventListener("click",loadChallenges);
+$("saveBtn").addEventListener("click",saveChallenge);
+$("clearBtn").addEventListener("click",clearForm);
+$("copyStudentLinkBtn").addEventListener("click",()=>{
+ const url="https://student.abuhazem.com/?challenge=1&schoolId="+encodeURIComponent(activeSchoolId);
+ if(navigator.clipboard?.writeText)navigator.clipboard.writeText(url).then(()=>msg("تم نسخ رابط بوابة التحدي للطلاب:\n"+url,"success")).catch(()=>prompt("انسخ الرابط:",url));
+ else prompt("انسخ الرابط:",url);
+});
+auth.onAuthStateChanged(async user=>{
+ if(!user){$("loginView").style.display="block";$("appView").style.display="none";return;}
+ try{await openApp(user);}catch(e){await auth.signOut();$("loginView").style.display="block";loginMsg(e.message||"الحساب غير مصرح له.");}
+});
+</script>
+</body></html>
