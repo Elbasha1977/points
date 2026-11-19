@@ -21,6 +21,7 @@ h2{color:#4338ca;margin:0 0 16px}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
 label{display:block;font-weight:bold;font-size:14px;margin:10px 0 6px}
 input,select,textarea{width:100%;padding:12px;border:1px solid #cbd5e1;border-radius:10px;font-size:15px;background:#fff}
+input[type=radio],input[type=checkbox]{width:20px;height:20px;padding:0;}
 textarea{min-height:85px;resize:vertical}
 button{border:0;border-radius:11px;padding:12px 17px;font-weight:bold;font-size:15px;cursor:pointer}
 button:disabled{opacity:.55;cursor:not-allowed}
@@ -151,7 +152,7 @@ async function openApp(user){
  }
  $("classId").innerHTML=classes.map(x=>'<option value="'+esc(x)+'">'+esc(x)+'</option>').join("");
  $("userLabel").textContent=user.email||"حساب POINTS";
- $("roleLabel").textContent=isGlobalAdmin?"المدير العام":"المعلم — "+esc(profile.schoolName||"");
+ $("roleLabel").textContent=isGlobalAdmin?"المدير العام":"المعلم — "+String(profile.schoolName||"");
  $("dateKey").value=qatarDate();
  $("loginView").style.display="none";$("appView").style.display="block";
  await loadChallenges();
