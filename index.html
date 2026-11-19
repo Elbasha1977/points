@@ -3,6 +3,22 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- تحويل روابط أوراق العمل القديمة إلى بوابة الطالب المستقلة -->
+<script>
+(function () {
+    const params = new URLSearchParams(window.location.search);
+    const isLegacyStudentLink = params.get('student') === 'true';
+    const worksheetId = params.get('id');
+
+    if (!isLegacyStudentLink || !worksheetId) return;
+
+    const studentUrl = new URL('https://student.abuhazem.com/');
+    studentUrl.searchParams.set('id', worksheetId);
+    window.location.replace(studentUrl.toString());
+})();
+</script>
+
 <title>Classroom Follow Up, Points &amp; Motivations - Manager</title>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
