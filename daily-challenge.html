@@ -124,7 +124,9 @@ const GLOBAL_ADMIN_UID="hwPgzTQbdfUJa45G2Wwc79ANNJE2";
 let currentUser=null, profile=null, isGlobalAdmin=false, activeSchoolId="";
 const $=id=>document.getElementById(id);
 function qatarDate(){
- return new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Qatar",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
+ const parts=new Intl.DateTimeFormat("en",{timeZone:"Asia/Qatar",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date());
+ const get=t=>parts.find(p=>p.type===t)?.value||"";
+ return get("year")+"-"+get("month")+"-"+get("day");
 }
 function msg(text,type="notice"){
  const el=$("statusMsg");el.className="notice "+(type==="error"?"error":type==="success"?"success":"");el.textContent=text;el.style.display="block";
