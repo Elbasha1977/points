@@ -99,6 +99,7 @@ button:disabled{opacity:.55;cursor:not-allowed}
    <label style="display:flex;align-items:center;gap:9px"><input id="active" type="checkbox" checked style="width:20px"> نشر التحدي للطلاب</label>
    <div class="row" style="margin-top:14px">
     <button class="primary" id="saveBtn">💾 حفظ ونشر التحدي</button>
+    <button class="gold" id="saveAllBtn">🔥 نشر لجميع صفوفي</button>
     <button class="gray" id="clearBtn">تفريغ النموذج</button>
    </div>
    <p class="small">يمكن إعداد تحدٍ لليوم أو خلال الثلاثين يومًا القادمة. بعد بدء أول محاولة طالب، يُقفل السؤال وإجابته لمنع تغيير نتيجة التحدي.</p>
@@ -121,7 +122,7 @@ const firebaseConfig = {
 if(!firebase.apps.length)firebase.initializeApp(firebaseConfig);
 const auth=firebase.auth(), db=firebase.firestore(), functions=firebase.app().functions("us-central1");
 const GLOBAL_ADMIN_UID="hwPgzTQbdfUJa45G2Wwc79ANNJE2";
-let currentUser=null, profile=null, isGlobalAdmin=false, activeSchoolId="";
+let currentUser=null, profile=null, isGlobalAdmin=false, activeSchoolId="", assignedClasses=[];
 const $=id=>document.getElementById(id);
 function qatarDate(){
  const parts=new Intl.DateTimeFormat("en",{timeZone:"Asia/Qatar",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date());
@@ -153,7 +154,10 @@ async function openApp(user){
  }else{
    throw new Error("إدارة التحديات متاحة للمدير العام والمعلمين المعتمدين فقط.");
  }
- $("classId").innerHTML=classes.map(x=>'<option value="'+esc(x)+'">'+esc(x)+'</option>').join("");
+ assignedClasses=Array.from(new Set(classes.map(x=>String(x).trim()).filter(Boolean)));
+  $("classId").innerHTML=classes.map(x=>'<option value="'+esc(x)+'">'+esc(x)+'</option>').join("");
+ $("saveAllBtn").textContent="🔥 نشر لجميع صفوفي ("+assignedClasses.length+")";
+ $("saveAllBtn").style.display=assignedClasses.length>1?"":"none";
  $("userLabel").textContent=user.email||"حساب POINTS";
  $("roleLabel").textContent=isGlobalAdmin?"المدير العام":"المعلم — "+String(profile.schoolName||"");
  $("dateKey").value=qatarDate();
@@ -179,12 +183,12 @@ function clearForm(){
  document.querySelectorAll('input[name="correct"]').forEach(x=>x.checked=false);
  $("rewardPoints").value=5;$("durationSeconds").value=60;$("openTime").value="07:00";$("closeTime").value="14:00";$("active").checked=true;
 }
-async function saveChallenge(){
- const classId=$("classId").value, dateKey=$("dateKey").value;
+function buildChallengePayload(classId){
+ const dateKey=$("dateKey").value;
  const options=["A","B","C","D"].map(id=>({id,text:$("opt"+id).value.trim()})).filter(x=>x.text);
  const correctOptionId=document.querySelector('input[name="correct"]:checked')?.value||"";
- if(options.length<2){msg("أدخل اختيارين على الأقل.","error");return;}
- if(!options.some(x=>x.id===correctOptionId)){msg("حدد الإجابة الصحيحة بالنقر على الدائرة بجوار الاختيار.","error");return;}
+ if(options.length<2){msg("أدخل اختيارين على الأقل.","error");return null;}
+ if(!options.some(x=>x.id===correctOptionId)){msg("حدد الإجابة الصحيحة بالنقر على الدائرة بجوار الاختيار.","error");return null;}
  const payload={
   classId,schoolId:activeSchoolId,dateKey,title:$("title").value.trim(),
   question:$("question").value.trim(),options,correctOptionId,
@@ -192,14 +196,60 @@ async function saveChallenge(){
   durationSeconds:Number($("durationSeconds").value),openTime:$("openTime").value,
   closeTime:$("closeTime").value,active:$("active").checked
  };
- if(!payload.question){msg("اكتب نص السؤال أولاً.","error");return;}
- $("saveBtn").disabled=true;$("saveBtn").textContent="⏳ جارٍ الحفظ...";
+ if(!payload.question){msg("اكتب نص السؤال أولاً.","error");return null;}
+ if(!Number.isInteger(payload.rewardPoints)||payload.rewardPoints<1||payload.rewardPoints>100){
+  msg("المكافأة يجب أن تكون من 1 إلى 100 نقطة.","error");return null;
+ }
+ if(!Number.isInteger(payload.durationSeconds)||payload.durationSeconds<15||payload.durationSeconds>300){
+  msg("مدة المحاولة يجب أن تكون بين 15 و300 ثانية.","error");return null;
+ }
+ if(!payload.dateKey){msg("حدد تاريخ التحدي أولاً.","error");return null;}
+ return payload;
+}
+function setChallengeSaveBusy(busy,bulk){
+ const save=$("saveBtn"),all=$("saveAllBtn");
+ save.disabled=busy;all.disabled=busy;
+ save.textContent=busy?(bulk?"⏳ جارٍ النشر لجميع الصفوف...":"⏳ جارٍ الحفظ..."):"💾 حفظ ونشر التحدي";
+ all.textContent=busy?"⏳ جارٍ النشر...":"🔥 نشر لجميع صفوفي ("+assignedClasses.length+")";
+}
+async function saveChallenge(){
+ const payload=buildChallengePayload($("classId").value);
+ if(!payload)return;
+ setChallengeSaveBusy(true,false);
  try{
   const res=await callable("saveDailyChallenge")(payload);
-  msg(res.data?.active?"تم حفظ التحدي ونشره بنجاح.":"تم حفظ التحدي وإيقاف نشره.", "success");
+  msg(res.data?.active?"تم حفظ التحدي ونشره بنجاح.":"تم حفظ التحدي وإيقاف نشره.","success");
   await loadChallenges();
  }catch(e){msg(e.message||"تعذر حفظ التحدي.","error");}
- finally{$("saveBtn").disabled=false;$("saveBtn").textContent="💾 حفظ ونشر التحدي";}
+ finally{setChallengeSaveBusy(false,false);}
+}
+async function saveChallengeForAllClasses(){
+ const targets=assignedClasses.slice();
+ if(!targets.length){msg("لم يتم العثور على صفوف مسندة إلى حسابك.","error");return;}
+ if(targets.length===1){msg("حسابك لديه صف واحد فقط؛ استخدم زر حفظ ونشر التحدي.","error");return;}
+ const payload=buildChallengePayload($("classId").value||targets[0]);
+ if(!payload)return;
+ if(!confirm("سيتم نشر التحدي نفسه لجميع صفوفك التالية:\n\n"+targets.join("، ")+"\n\nهل تريد المتابعة؟"))return;
+ setChallengeSaveBusy(true,true);
+ const succeeded=[],failed=[];
+ try{
+  for(const classId of targets){
+   try{
+    const response=await callable("saveDailyChallenge")({...payload,classId});
+    if(response.data?.success!==true)throw new Error("لم يؤكد الخادم حفظ التحدي.");
+    succeeded.push(classId);
+   }catch(error){
+    failed.push({classId,error:String(error.message||error)});
+   }
+  }
+  await loadChallenges();
+  let summary="اكتمل النشر الجماعي.\nتم النشر بنجاح في "+succeeded.length+" من "+targets.length+" صفوف.";
+  if(succeeded.length)summary+="\n\nالصفوف التي تم النشر فيها:\n"+succeeded.join("، ");
+  if(failed.length)summary+="\n\nتعذر النشر في الصفوف التالية (مثلًا إذا بدأت فيها محاولات الطلاب):\n"+failed.map(x=>x.classId+": "+x.error).join("\n");
+  msg(summary,failed.length?"error":"success");
+ }finally{
+  setChallengeSaveBusy(false,true);
+ }
 }
 $("loginBtn").addEventListener("click",async()=>{
  try{await auth.signInWithEmailAndPassword($("email").value.trim(),$("password").value);}
@@ -211,6 +261,7 @@ $("classId").addEventListener("change",loadChallenges);
 $("dateKey").addEventListener("change",loadChallenges);
 $("refreshBtn").addEventListener("click",loadChallenges);
 $("saveBtn").addEventListener("click",saveChallenge);
+$("saveAllBtn").addEventListener("click",saveChallengeForAllClasses);
 $("clearBtn").addEventListener("click",clearForm);
 $("copyStudentLinkBtn").addEventListener("click",()=>{
  const url="https://student.abuhazem.com/?challenge=1&schoolId="+encodeURIComponent(activeSchoolId);
