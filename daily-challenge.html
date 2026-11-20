@@ -79,18 +79,42 @@ button:disabled{opacity:.55;cursor:not-allowed}
   <section class="card">
    <h2>إنشاء تحدي جديد</h2>
    <label>عنوان التحدي</label><input id="title" maxlength="100" value="تحدي اليوم">
-   <label>السؤال</label><textarea id="question" maxlength="500" placeholder="اكتب سؤال اليوم هنا..."></textarea>
-   <label>الاختيارات — حدد الدائرة بجوار الإجابة الصحيحة</label>
-   <div id="optionsHost">
-    <div class="option"><input id="optA" maxlength="160" placeholder="الاختيار الأول"><input type="radio" name="correct" value="A" aria-label="صحيح"></div>
-    <div class="option"><input id="optB" maxlength="160" placeholder="الاختيار الثاني"><input type="radio" name="correct" value="B" aria-label="صحيح"></div>
-    <div class="option"><input id="optC" maxlength="160" placeholder="الاختيار الثالث (اختياري)"><input type="radio" name="correct" value="C" aria-label="صحيح"></div>
-    <div class="option"><input id="optD" maxlength="160" placeholder="الاختيار الرابع (اختياري)"><input type="radio" name="correct" value="D" aria-label="صحيح"></div>
-   </div>
+   <label>نوع السؤال</label><select id="challengeType" style="width:100%">
+    <option value="mcq">🔘 اختيار من متعدد</option><option value="matching">🔢 توصيل بالأرقام (بدون خطوط)</option>
+    <option value="writing">✍️ كتابة موضوع من 7 جمل قصيرة</option><option value="fill_blank">🧩 أكمل الفراغات من بنك الكلمات</option>
+    <option value="correct_verb">📝 تصحيح الفعل بين قوسين</option></select>
+   <label>السؤال أو التعليمات</label><textarea id="question" maxlength="500" placeholder="اكتب المطلوب من الطالب..."></textarea>
+   <div id="mcqFields"><label>الاختيارات — حدد الدائرة بجوار الإجابة الصحيحة</label><div id="optionsHost">
+    <div class="option"><input id="optA" maxlength="160" placeholder="الاختيار الأول"><input type="radio" name="correct" value="A"></div>
+    <div class="option"><input id="optB" maxlength="160" placeholder="الاختيار الثاني"><input type="radio" name="correct" value="B"></div>
+    <div class="option"><input id="optC" maxlength="160" placeholder="الاختيار الثالث"><input type="radio" name="correct" value="C"></div>
+    <div class="option"><input id="optD" maxlength="160" placeholder="الاختيار الرابع"><input type="radio" name="correct" value="D"></div></div></div>
+   <div id="matchingFields" style="display:none"><div class="notice">اكتب الجمل الأربع في كل قائمة، واجعل ترتيب القائمة الثانية مختلطًا. حدد رقم الجملة الصحيحة المقابلة لكل جملة.</div>
+    <div class="grid"><div><b>القائمة الأولى</b>
+     <label>الجملة 1</label><input id="matchL1"><label>الجملة 2</label><input id="matchL2"><label>الجملة 3</label><input id="matchL3"><label>الجملة 4</label><input id="matchL4">
+    </div><div><b>القائمة الثانية — ترتيب مختلط</b>
+     <label>الجملة 1</label><input id="matchR1"><label>الجملة 2</label><input id="matchR2"><label>الجملة 3</label><input id="matchR3"><label>الجملة 4</label><input id="matchR4></div></div>
+    <b>مفتاح الإجابة — رقم الجملة الصحيحة من القائمة الثانية</b><div class="grid">
+     <div><label>إجابة الجملة 1</label><select id="correctMatch1"><option value="">اختر</option><option>1</option><option>2</option><option>3</option><option>4</option></select></div>
+     <div><label>إجابة الجملة 2</label><select id="correctMatch2"><option value="">اختر</option><option>1</option><option>2</option><option>3</option><option>4</option></select></div>
+     <div><label>إجابة الجملة 3</label><select id="correctMatch3"><option value="">اختر</option><option>1</option><option>2</option><option>3</option><option>4</option></select></div>
+     <div><label>إجابة الجملة 4</label><select id="correctMatch4"><option value="">اختر</option><option>1</option><option>2</option><option>3</option><option>4</option></select></div></div></div>
+   <div id="writingFields" style="display:none"><label>موضوع الكتابة</label><textarea id="writingPrompt" maxlength="500" placeholder="Write about your favourite hobby."></textarea>
+    <label>تعليمات إضافية</label><input id="writingInstructions" maxlength="500" value="Write seven short sentences.">
+    <div class="notice">سيكتب الطالب سبع جمل قصيرة. تُرسل للمعلم للمراجعة، ثم يحدد النقاط المستحقة من مكافأة التحدي.</div></div>
+   <div id="fillBlankFields" style="display:none"><label>بنك الكلمات — خمس كلمات، وافصل بينها بشرطة (-)</label><input id="wordBankInput" placeholder="plays - played - playing - play - player">
+    <div class="notice">ضع خمسة خطوط (_____) مكان الكلمة الناقصة في كل جملة، ثم حدد إجابة كل فراغ من بنك الكلمات.</div>
+    <label>الجملة 1</label><input id="blankSentence1" placeholder="He _____ football every day."><select id="blankAnswer1" class="blank-answer"><option value="">الإجابة الصحيحة</option></select>
+    <label>الجملة 2</label><input id="blankSentence2" placeholder="They _____ in the park."><select id="blankAnswer2" class="blank-answer"><option value="">الإجابة الصحيحة</option></select>
+    <label>الجملة 3</label><input id="blankSentence3" placeholder="She _____ a story yesterday."><select id="blankAnswer3" class="blank-answer"><option value="">الإجابة الصحيحة</option></select>
+    <label>الجملة 4</label><input id="blankSentence4" placeholder="I like to _____."><select id="blankAnswer4" class="blank-answer"><option value="">الإجابة الصحيحة</option></select>
+    <label>الجملة 5</label><input id="blankSentence5" placeholder="My brother is a good _____."><select id="blankAnswer5" class="blank-answer"><option value="">الإجابة الصحيحة</option></select></div>
+   <div id="correctVerbFields" style="display:none"><label>الجملة — ضع الفعل المطلوب تصحيحه بين قوسين</label><input id="verbSentence" placeholder="She (go) to school every day.">
+    <label>الفعل بعد التصحيح</label><input id="correctVerb" placeholder="goes"></div>
    <label>تفسير الإجابة (يظهر بعد التسليم فقط)</label><textarea id="explanation" maxlength="500" placeholder="شرح قصير يساعد الطالب على التعلم..."></textarea>
    <div class="grid">
     <div><label>النقاط عند الإجابة الصحيحة</label><input id="rewardPoints" type="number" min="1" max="100" value="5"></div>
-    <div><label>مدة المحاولة بالثواني</label><input id="durationSeconds" type="number" min="15" max="300" value="60"></div>
+    <div><label>مدة المحاولة بالثواني</label><input id="durationSeconds" type="number" min="15" max="900" value="120"></div>
    </div>
    <div class="grid">
     <div><label>وقت فتح التحدي (توقيت قطر)</label><input id="openTime" type="time" value="07:00"></div>
@@ -108,6 +132,10 @@ button:disabled{opacity:.55;cursor:not-allowed}
    <h2>التحديات السابقة والقادمة</h2>
    <div id="challengeList" class="sub">اختر الشعبة لعرض التحديات.</div>
   </section>
+  <section class="card"><h2>✍️ مراجعة موضوعات الطلاب الكتابية</h2>
+   <p class="small">راجع الجمل السبع وحدد النقاط المستحقة لاعتمادها في رصيد الطالب ولوحة الشرف المنزلية.</p>
+   <button class="gray" id="loadWritingBtn" style="margin:12px 0">🔄 عرض الموضوعات المرسلة</button>
+   <div id="writingReviewList" class="sub">اضغط عرض الموضوعات لتحميل الإجابات التي تنتظر المراجعة.</div></section>
  </main>
 </div>
 <script>
@@ -177,35 +205,20 @@ async function loadChallenges(){
    }).join("");
  }catch(e){$("challengeList").textContent="تعذر تحميل التحديات: "+(e.message||e);}
 }
-function clearForm(){
- $("title").value="تحدي اليوم";$("question").value="";$("explanation").value="";
- ["A","B","C","D"].forEach((id,i)=>$("opt"+id).value="");
- document.querySelectorAll('input[name="correct"]').forEach(x=>x.checked=false);
- $("rewardPoints").value=5;$("durationSeconds").value=60;$("openTime").value="07:00";$("closeTime").value="14:00";$("active").checked=true;
-}
-function buildChallengePayload(classId){
- const dateKey=$("dateKey").value;
- const options=["A","B","C","D"].map(id=>({id,text:$("opt"+id).value.trim()})).filter(x=>x.text);
- const correctOptionId=document.querySelector('input[name="correct"]:checked')?.value||"";
- if(options.length<2){msg("أدخل اختيارين على الأقل.","error");return null;}
- if(!options.some(x=>x.id===correctOptionId)){msg("حدد الإجابة الصحيحة بالنقر على الدائرة بجوار الاختيار.","error");return null;}
- const payload={
-  classId,schoolId:activeSchoolId,dateKey,title:$("title").value.trim(),
-  question:$("question").value.trim(),options,correctOptionId,
-  explanation:$("explanation").value.trim(),rewardPoints:Number($("rewardPoints").value),
-  durationSeconds:Number($("durationSeconds").value),openTime:$("openTime").value,
-  closeTime:$("closeTime").value,active:$("active").checked
- };
- if(!payload.question){msg("اكتب نص السؤال أولاً.","error");return null;}
- if(!Number.isInteger(payload.rewardPoints)||payload.rewardPoints<1||payload.rewardPoints>100){
-  msg("المكافأة يجب أن تكون من 1 إلى 100 نقطة.","error");return null;
- }
- if(!Number.isInteger(payload.durationSeconds)||payload.durationSeconds<15||payload.durationSeconds>300){
-  msg("مدة المحاولة يجب أن تكون بين 15 و300 ثانية.","error");return null;
- }
- if(!payload.dateKey){msg("حدد تاريخ التحدي أولاً.","error");return null;}
- return payload;
-}
+function updateChallengeTypeFields(){const type=$("challengeType").value;const groups={mcq:"mcqFields",matching:"matchingFields",writing:"writingFields",fill_blank:"fillBlankFields",correct_verb:"correctVerbFields"};Object.entries(groups).forEach(([key,id])=>$(id).style.display=key===type?"block":"none");}
+function updateWordBankChoices(){const words=$("wordBankInput").value.split("-").map(x=>x.trim()).filter(Boolean);document.querySelectorAll(".blank-answer").forEach(select=>{const old=select.value;select.innerHTML='<option value="">الإجابة الصحيحة من بنك الكلمات</option>'+words.map(x=>'<option value="'+esc(x)+'">'+esc(x)+'</option>').join("");if(words.includes(old))select.value=old;});}
+function clearForm(){$("title").value="تحدي اليوم";$("question").value="";$("explanation").value="";$("challengeType").value="mcq";["A","B","C","D"].forEach(id=>$("opt"+id).value="");document.querySelectorAll('input[name="correct"]').forEach(x=>x.checked=false);for(let i=1;i<=4;i++){$("matchL"+i).value="";$("matchR"+i).value="";$("correctMatch"+i).value="";}$("writingPrompt").value="";$("writingInstructions").value="Write seven short sentences.";$("wordBankInput").value="";for(let i=1;i<=5;i++){$("blankSentence"+i).value="";$("blankAnswer"+i).value="";}$("verbSentence").value="";$("correctVerb").value="";updateWordBankChoices();updateChallengeTypeFields();$("rewardPoints").value=5;$("durationSeconds").value=120;$("openTime").value="07:00";$("closeTime").value="14:00";$("active").checked=true;}
+function buildChallengePayload(classId){const type=$("challengeType").value;const payload={type,classId,schoolId:activeSchoolId,dateKey:$("dateKey").value,title:$("title").value.trim(),question:$("question").value.trim(),explanation:$("explanation").value.trim(),rewardPoints:Number($("rewardPoints").value),durationSeconds:Number($("durationSeconds").value),openTime:$("openTime").value,closeTime:$("closeTime").value,active:$("active").checked};
+ if(!payload.dateKey){msg("حدد تاريخ التحدي أولاً.","error");return null;}if(!Number.isInteger(payload.rewardPoints)||payload.rewardPoints<1||payload.rewardPoints>100){msg("المكافأة يجب أن تكون من 1 إلى 100 نقطة.","error");return null;}if(!Number.isInteger(payload.durationSeconds)||payload.durationSeconds<15||payload.durationSeconds>900){msg("مدة المحاولة يجب أن تكون بين 15 و900 ثانية.","error");return null;}if(type!=="writing"&&!payload.question){msg("اكتب السؤال أو التعليمات أولاً.","error");return null;}
+ if(type==="mcq"){const options=["A","B","C","D"].map(id=>({id,text:$("opt"+id).value.trim()})).filter(x=>x.text);const correctOptionId=document.querySelector('input[name="correct"]:checked')?.value||"";if(options.length<2||!options.some(x=>x.id===correctOptionId)){msg("أدخل اختيارين على الأقل وحدد الإجابة الصحيحة.","error");return null;}payload.options=options;payload.correctOptionId=correctOptionId;
+ }else if(type==="matching"){payload.matchingLeft=Array.from({length:4},(_,i)=>$("matchL"+(i+1)).value.trim());payload.matchingRight=Array.from({length:4},(_,i)=>$("matchR"+(i+1)).value.trim());payload.correctMatches=Array.from({length:4},(_,i)=>Number($("correctMatch"+(i+1)).value));if(payload.matchingLeft.some(x=>!x)||payload.matchingRight.some(x=>!x)||payload.correctMatches.some(x=>!x)||new Set(payload.correctMatches).size!==4){msg("أكمل الجمل الثماني ومفتاح التوصيل بأربعة أرقام مختلفة.","error");return null;}
+ }else if(type==="writing"){payload.writingPrompt=$("writingPrompt").value.trim();payload.writingInstructions=$("writingInstructions").value.trim();if(!payload.writingPrompt){msg("اكتب موضوع الكتابة المطلوب.","error");return null;}
+ }else if(type==="fill_blank"){payload.wordBank=$("wordBankInput").value.split("-").map(x=>x.trim()).filter(Boolean);payload.blanks=Array.from({length:5},(_,i)=>({sentence:$("blankSentence"+(i+1)).value.trim(),answer:$("blankAnswer"+(i+1)).value.trim()}));if(payload.wordBank.length!==5||payload.blanks.some(x=>!x.sentence.includes("_____")||!x.answer)){msg("أدخل خمس كلمات وخمس جمل تحتوي كل منها على _____ وحدد الإجابة الصحيحة.","error");return null;}
+ }else if(type==="correct_verb"){payload.verbSentence=$("verbSentence").value.trim();payload.correctVerb=$("correctVerb").value.trim();if(!/\([^()]+\)/.test(payload.verbSentence)||!payload.correctVerb){msg("اكتب جملة بها فعل بين قوسين ثم أدخل الفعل بعد التصحيح.","error");return null;}}return payload;}
+async function loadWritingSubmissions(){const cls=$("classId").value,dateKey=$("dateKey").value,box=$("writingReviewList"),btn=$("loadWritingBtn");if(!cls||!dateKey){msg("حدد الصف والتاريخ أولاً.","error");return;}btn.disabled=true;box.textContent="⏳ جارٍ تحميل الموضوعات المنتظرة...";try{const response=await callable("listDailyChallengeWritingSubmissions")({classId:cls,dateKey,schoolId:activeSchoolId});const rows=response.data?.submissions||[];if(!rows.length){box.textContent="لا توجد موضوعات تنتظر المراجعة لهذا الصف والتاريخ.";return;}box.innerHTML=rows.map(x=>
+ '<div class="challenge-card" id="writing-'+esc(x.attemptId)+'"><h3>'+esc(x.studentName)+'</h3><ol>'+x.sentences.map(s=>'<li style="margin:6px 0">'+esc(s)+'</li>').join("")+
+ '</ol><div class="grid"><div><label>النقاط المستحقة (من '+Number(x.maxPoints)+')</label><input type="number" min="0" max="'+Number(x.maxPoints)+'" step="1" value="'+Number(x.maxPoints)+'" id="grade-'+esc(x.attemptId)+'"></div><div style="display:flex;align-items:end"><button class="green" onclick="gradeWritingSubmission(\''+esc(x.attemptId)+'\','+Number(x.maxPoints)+')">✅ اعتماد النقاط</button></div></div></div>').join("");}catch(e){box.textContent="تعذر تحميل الموضوعات: "+(e.message||e);}finally{btn.disabled=false;}}
+window.gradeWritingSubmission=async function(attemptId,maxPoints){const amount=Number(document.getElementById("grade-"+attemptId)?.value);if(!Number.isInteger(amount)||amount<0||amount>maxPoints){alert("أدخل نقاطًا صحيحة من صفر إلى "+maxPoints+".");return;}if(!confirm("اعتماد "+amount+" نقطة لهذا الطالب وإضافتها إلى رصيده؟"))return;try{const response=await callable("gradeDailyChallengeWritingSubmission")({classId:$("classId").value,dateKey:$("dateKey").value,schoolId:activeSchoolId,attemptId,awardedPoints:amount});if(response.data?.success!==true)throw new Error("لم يؤكد الخادم اعتماد النقاط.");msg("تم اعتماد "+amount+" نقطة للطالب "+response.data.studentName+" وإضافتها إلى رصيده ولوحة الشرف المنزلية.","success");await loadWritingSubmissions();}catch(e){alert("تعذر اعتماد النقاط: "+(e.message||e));}}
 function setChallengeSaveBusy(busy,bulk){
  const save=$("saveBtn"),all=$("saveAllBtn");
  save.disabled=busy;all.disabled=busy;
@@ -262,6 +275,10 @@ $("dateKey").addEventListener("change",loadChallenges);
 $("refreshBtn").addEventListener("click",loadChallenges);
 $("saveBtn").addEventListener("click",saveChallenge);
 $("saveAllBtn").addEventListener("click",saveChallengeForAllClasses);
+$("challengeType").addEventListener("change",updateChallengeTypeFields);
+$("wordBankInput").addEventListener("input",updateWordBankChoices);
+$("loadWritingBtn").addEventListener("click",loadWritingSubmissions);
+updateChallengeTypeFields();
 $("clearBtn").addEventListener("click",clearForm);
 $("copyStudentLinkBtn").addEventListener("click",()=>{
  const url="https://student.abuhazem.com/?challenge=1&schoolId="+encodeURIComponent(activeSchoolId);
