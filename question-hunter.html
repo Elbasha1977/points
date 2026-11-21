@@ -22,7 +22,7 @@
 <section class="card"><h2>إعداد لعبة جديدة</h2><div class="grid"><div><label>اسم اللعبة</label><input id="title" maxlength="100" value="صائد الأسئلة"></div><div><label>النقاط لكل إجابة صحيحة</label><input id="reward" type="number" min="1" max="20" value="5"></div></div>
 <p class="hint">أدخل خمسة أسئلة بالضبط. لكل سؤال خياران إلى أربعة، وحدد الإجابة الصحيحة. سيظهر سؤال واحد فقط بعد إصابة الهدف.</p><div id="questions"></div>
 <div class="grid"><label style="display:flex;align-items:center;gap:8px"><input id="active" type="checkbox" checked style="width:20px"> نشر اللعبة للطلاب</label></div>
-<div class="actions"><button class="btn primary" id="saveBtn">💾 حفظ ونشر اللعبة</button><button class="btn gray" id="loadBtn">تحميل الإعدادات الحالية</button></div>
+<div class="actions"><button class="btn primary" id="saveBtn">💾 حفظ ونشر للشعبة المحددة</button><button class="btn gold" id="saveAllBtn">🚀 نشر لجميع صفوفي</button><button class="btn gray" id="loadBtn">تحميل الإعدادات الحالية</button></div>
 <div id="savedInfo" class="notice hide"></div></section>
 </main></div>
 <script>
@@ -37,11 +37,46 @@ function call(name,data){return functions.httpsCallable(name)(data).then(r=>r.da
 function message(id,text,type="notice"){const e=$(id);e.className="notice "+(type==="error"?"error":type==="success"?"success":"");e.textContent=text;e.classList.remove("hide");}
 function buildQuestions(data){$("questions").innerHTML="";for(let i=0;i<5;i++){const q=data?.[i]||{};const box=document.createElement("div");box.className="question";box.innerHTML='<h3>🎯 السؤال '+(i+1)+'</h3><label>نص السؤال (يفضل أن يكون باللغة الإنجليزية)</label><textarea id="prompt'+i+'" maxlength="300" placeholder="Choose the correct answer...">'+esc(q.prompt||"")+'</textarea><label>الاختيارات — حدد الدائرة أمام الإجابة الصحيحة</label>'+[0,1,2,3].map(j=>'<div class="opt"><input id="q'+i+'o'+j+'" maxlength="160" placeholder="الاختيار '+(j+1)+'" value="'+esc(q.options?.[j]?.text||"")+'"><input type="radio" name="correct'+i+'" value="'+String.fromCharCode(65+j)+'" '+(q.correctOptionId===String.fromCharCode(65+j)?"checked":"")+' aria-label="الإجابة الصحيحة"></div>').join("");$("questions").appendChild(box);}}
 function formQuestions(){return Array.from({length:5},(_,i)=>({id:"q"+(i+1),prompt:$("prompt"+i).value.trim(),options:[0,1,2,3].map(j=>({id:String.fromCharCode(65+j),text:$("q"+i+"o"+j).value.trim()})).filter(x=>x.text),correctOptionId:document.querySelector('input[name="correct'+i+'"]:checked')?.value||""}));}
-async function openApp(user){const snap=await db.collection("users").doc(user.uid).get();if(!snap.exists)throw Error("الحساب غير موجود.");const profile=snap.data()||{};if(profile.active!==true||profile.approved!==true)throw Error("الحساب غير نشط أو غير معتمد.");isGlobalAdmin=user.uid===GLOBAL_ADMIN_UID&&profile.role==="admin";let classes=[];if(isGlobalAdmin){activeSchoolId=String(profile.licenseId||profile.schoolId||"global").trim();classes=["السادس 2","السادس 4","السادس 6"];}else if(profile.role==="staff"){activeSchoolId=String(profile.schoolId||"").trim();classes=Array.isArray(profile.classIds)?profile.classIds.map(x=>String(x).trim()).filter(Boolean):[];if(!activeSchoolId||!classes.length)throw Error("لا توجد شعب مسندة إلى حسابك.");}else throw Error("إدارة اللعبة متاحة للمدير العام والمعلمين المعتمدين فقط.");assignedClasses=Array.from(new Set(classes));$("classId").innerHTML=assignedClasses.map(x=>'<option value="'+esc(x)+'">'+esc(x)+'</option>').join("");$("userLabel").textContent=user.email||"حساب POINTS";$("roleLabel").textContent=isGlobalAdmin?"المدير العام":"المعلم";$("dateKey").value=qatarDate();$("login").classList.add("hide");$("app").classList.remove("hide");await loadGame();}
+async function openApp(user){const snap=await db.collection("users").doc(user.uid).get();if(!snap.exists)throw Error("الحساب غير موجود.");const profile=snap.data()||{};if(profile.active!==true||profile.approved!==true)throw Error("الحساب غير نشط أو غير معتمد.");isGlobalAdmin=user.uid===GLOBAL_ADMIN_UID&&profile.role==="admin";let classes=[];if(isGlobalAdmin){activeSchoolId=String(profile.licenseId||profile.schoolId||"global").trim();classes=["السادس 2","السادس 4","السادس 6"];}else if(profile.role==="staff"){activeSchoolId=String(profile.schoolId||"").trim();classes=Array.isArray(profile.classIds)?profile.classIds.map(x=>String(x).trim()).filter(Boolean):[];if(!activeSchoolId||!classes.length)throw Error("لا توجد شعب مسندة إلى حسابك.");}else throw Error("إدارة اللعبة متاحة للمدير العام والمعلمين المعتمدين فقط.");assignedClasses=Array.from(new Set(classes));$("saveAllBtn").style.display=assignedClasses.length>1?"":"none";$("saveAllBtn").textContent="🚀 نشر لجميع صفوفي ("+assignedClasses.length+")";$("classId").innerHTML=assignedClasses.map(x=>'<option value="'+esc(x)+'">'+esc(x)+'</option>').join("");$("userLabel").textContent=user.email||"حساب POINTS";$("roleLabel").textContent=isGlobalAdmin?"المدير العام":"المعلم";$("dateKey").value=qatarDate();$("login").classList.add("hide");$("app").classList.remove("hide");await loadGame();}
 async function loadGame(){const classId=$("classId").value,dateKey=$("dateKey").value;if(!classId||!dateKey)return;try{const r=await call("getQuestionHunterGameForTeacher",{classId,dateKey,schoolId:activeSchoolId});if(!r.success)throw Error("تعذر تحميل الإعدادات.");if(!r.found){buildQuestions();$("title").value="صائد الأسئلة";$("active").checked=true;$("savedInfo").classList.add("hide");return;}const g=r.game||{};buildQuestions(g.questions);$("title").value=g.title||"صائد الأسئلة";$("reward").value=g.rewardPoints||5;$("active").checked=g.active===true;const info="اللعبة محفوظة. بدأ "+Number(g.sessionsStarted||0)+" طالبًا اللعب بها."+ (Number(g.sessionsStarted||0)>0?" تم قفل تعديل الأسئلة حفاظًا على نزاهة المحاولات.":"");message("savedInfo",info,"success");$("saveBtn").disabled=Number(g.sessionsStarted||0)>0;document.querySelectorAll("#questions input,#questions textarea").forEach(x=>x.disabled=Number(g.sessionsStarted||0)>0);$("title").disabled=Number(g.sessionsStarted||0)>0;$("reward").disabled=Number(g.sessionsStarted||0)>0;}catch(e){message("status",e.message||"تعذر التحميل.","error");}}
 async function saveGame(){const questions=formQuestions();const data={classId:$("classId").value,dateKey:$("dateKey").value,title:$("title").value.trim(),rewardPoints:Number($("reward").value),active:$("active").checked,questions,schoolId:activeSchoolId};$("saveBtn").disabled=true;try{const r=await call("saveQuestionHunterGame",data);if(!r.success)throw Error("لم يؤكد الخادم حفظ اللعبة.");message("status","✅ تم حفظ اللعبة ونشرها للشعبة المحددة. يمكن للطلاب فتح زر صائد الأسئلة في بوابة الطالب.","success");await loadGame();}catch(e){message("status",e.message||"تعذر حفظ اللعبة.","error");$("saveBtn").disabled=false;}}
+async function saveGameForAllClasses(){
+ const classes=assignedClasses.slice();
+ if(!classes.length){message("status","لا توجد صفوف مسندة إلى حسابك.","error");return;}
+ const questions=formQuestions();
+ const title=$("title").value.trim()||"صائد الأسئلة";
+ const rewardPoints=Number($("reward").value);
+ if(questions.length!==5||questions.some(q=>!q.prompt||q.options.length<2||q.options.length>4||!q.correctOptionId||!q.options.some(o=>o.id===q.correctOptionId))){
+  message("status","أكمل الأسئلة الخمسة وحدد الإجابة الصحيحة لكل سؤال قبل النشر الجماعي.","error");return;
+ }
+ if(!Number.isInteger(rewardPoints)||rewardPoints<1||rewardPoints>20){
+  message("status","حدد نقاطًا صحيحة من 1 إلى 20 لكل إجابة صحيحة.","error");return;
+ }
+ const payload={dateKey:$("dateKey").value,title,rewardPoints,active:$("active").checked,questions,schoolId:activeSchoolId};
+ if(!payload.dateKey){message("status","حدد تاريخ اللعبة أولاً.","error");return;}
+ if(!confirm("سيتم نشر اللعبة نفسها على جميع صفوفك ("+classes.length+" صفوف):\n"+classes.join("، ")+"\n\nهل تريد المتابعة؟"))return;
+ $("saveAllBtn").disabled=true;$("saveBtn").disabled=true;
+ const succeeded=[],failed=[];
+ try{
+  for(const classId of classes){
+   try{
+    const response=await call("saveQuestionHunterGame",{...payload,classId});
+    if(response.success!==true)throw Error("لم يؤكد الخادم حفظ اللعبة.");
+    succeeded.push(classId);
+   }catch(error){failed.push({classId,error:String(error.message||error)});}
+  }
+  let summary="انتهى النشر الجماعي.\nنجح النشر في "+succeeded.length+" من "+classes.length+" صفوف.";
+  if(succeeded.length)summary+="\n\nالصفوف التي تم النشر فيها:\n"+succeeded.join("، ");
+  if(failed.length)summary+="\n\nالصفوف التي تعذر النشر فيها:\n"+failed.map(x=>x.classId+": "+x.error).join("\n");
+  message("status",summary,failed.length?"error":"success");
+  await loadGame();
+ }finally{
+  $("saveAllBtn").disabled=false;
+  $("saveBtn").disabled=false;
+ }
+}
 $("loginBtn").onclick=async()=>{try{await auth.signInWithEmailAndPassword($("email").value.trim(),$("password").value);}catch(e){message("loginMsg",e.message||"تعذر الدخول.","error");}};
-$("password").onkeydown=e=>{if(e.key==="Enter")$("loginBtn").click();};$("logoutBtn").onclick=()=>auth.signOut();$("classId").onchange=loadGame;$("dateKey").onchange=loadGame;$("loadBtn").onclick=loadGame;$("saveBtn").onclick=saveGame;
+$("password").onkeydown=e=>{if(e.key==="Enter")$("loginBtn").click();};$("logoutBtn").onclick=()=>auth.signOut();$("classId").onchange=loadGame;$("dateKey").onchange=loadGame;$("loadBtn").onclick=loadGame;$("saveBtn").onclick=saveGame;$("saveAllBtn").onclick=saveGameForAllClasses;
 $("copyLinkBtn").onclick=()=>{const u="https://student.abuhazem.com/?hunter=1&schoolId="+encodeURIComponent(activeSchoolId);if(navigator.clipboard?.writeText)navigator.clipboard.writeText(u).then(()=>message("status","تم نسخ الرابط: "+u,"success")).catch(()=>prompt("انسخ الرابط",u));else prompt("انسخ الرابط",u);};
 auth.onAuthStateChanged(async user=>{if(!user){$("login").classList.remove("hide");$("app").classList.add("hide");return;}try{await openApp(user);}catch(e){await auth.signOut();message("loginMsg",e.message||"الحساب غير مصرح له.","error");}});
 buildQuestions();
