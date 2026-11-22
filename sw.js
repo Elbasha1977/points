@@ -24,10 +24,14 @@ self.addEventListener("fetch", event => {
       const launcherVersion = "20261122-feature-registry-v5";
       if (!html.includes("grade-analysis-launch.js")) {
         const script = '<script src="./grade-analysis-launch.js?v=' + launcherVersion + '" defer></script>';
-        if (/<\\/body>/i.test(html)) html = html.replace(/<\\/body>/i, script + "</body>");
+        const closingIndex = html.toLowerCase().lastIndexOf("</body>");
+        if (closingIndex >= 0) html = html.slice(0, closingIndex) + script + html.slice(closingIndex);
         else html += script;
       } else {
-        html = html.replace(/grade-analysis-launch\\.js(?:\\?v=[^"' ]*)?/g, "grade-analysis-launch.js?v=" + launcherVersion);
+        html = html.replaceAll(
+          "grade-analysis-launch.js?v=20261122-feature-registry-v4",
+          "grade-analysis-launch.js?v=" + launcherVersion
+        );
       }
       const headers = new Headers(response.headers);
       headers.delete("content-length");
