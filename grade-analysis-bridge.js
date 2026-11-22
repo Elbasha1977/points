@@ -275,6 +275,14 @@
     const container = document.querySelector(".container");
     if (container) container.style.display = "block";
     await gradeAnalysisLoadForClass(assignedClasses[0]);
+    const selectedMatch = assignedClasses[0].match(/^(الخامس|السادس)\s+(\d+)$/);
+    if (selectedMatch) {
+      const initialGrade = document.getElementById("initialGradeSelect");
+      const initialSection = document.getElementById("initialSectionSelect");
+      if (initialGrade) initialGrade.value = selectedMatch[1];
+      if (typeof window.updateInitialSectionOptions === "function") window.updateInitialSectionOptions();
+      if (initialSection) initialSection.value = selectedMatch[2];
+    }
     if (typeof window.initializeInitialClassification === "function") window.initializeInitialClassification();
     return true;
   }
@@ -409,6 +417,19 @@
   window.gradeAnalysisRefreshInitialClassification = gradeAnalysisRefreshInitialClassification;
 
   function gradeAnalysisInstallServerOverrides() {
+    const originalInitialSections = window.updateInitialSectionOptions;
+    window.updateInitialSectionOptions = function () {
+      const grade = document.getElementById("initialGradeSelect")?.value || "الخامس";
+      const prefix = grade === "السادس" ? "السادس " : "الخامس ";
+      const allowed = assignedClasses.filter(value => value.startsWith(prefix));
+      const select = document.getElementById("initialSectionSelect");
+      if (!select) return;
+      const previous = select.value;
+      select.innerHTML = allowed.length
+        ? allowed.map(value => '<option value="' + escapeHtml(value.slice(prefix.length)) + '">' + escapeHtml(value.slice(prefix.length)) + '</option>').join("")
+        : '<option value="">لا توجد شعبة مسندة لهذا الصف</option>';
+      if (allowed.some(value => value.slice(prefix.length) === previous)) select.value = previous;
+    };
     window.getInitialProactiveStudents = function (kind) {
       const key = kind === "high" ? "veryHigh" : "medium";
       return initialClassificationCache?.groups?.[key] || [];
@@ -517,6 +538,33 @@
         return oldInitialPlan.call(this, kind, silent);
       };
     }
+    if (typeof window.showPage === "function" && !window.showPage.__gradeAnalysisServerWrapped) {
+      const originalShowPage = window.showPage;
+      const wrappedShowPage = function (pageId) {
+        const result = originalShowPage.apply(this, arguments);
+        if (pageId === "analysis-page") {
+          setTimeout(() => gradeAnalysisScheduleOverview(), 250);
+        }
+        if (pageId === "initial-classification-page") {
+          setTimeout(() => gradeAnalysisRefreshInitialClassification().catch(error =>
+            gradeAnalysisShowMessage("تعذر تحميل التصنيف الأولي من الخادم: " + (error.message || error), "error")
+          ), 250);
+        }
+        return result;
+      };
+      wrappedShowPage.__gradeAnalysisServerWrapped = true;
+      window.showPage = wrappedShowPage;
+    }
+    ["initialGradeSelect","initialSectionSelect","initialTermSelect","initialTeacherSelect","initialCoordinatorSelect","initialEvalCount"].forEach(id => {
+      const el = document.getElementById(id);
+      if (!el || el.__gradeAnalysisServerListener) return;
+      el.__gradeAnalysisServerListener = true;
+      el.addEventListener("change", () => {
+        setTimeout(() => gradeAnalysisRefreshInitialClassification().catch(error =>
+          gradeAnalysisShowMessage("تعذر تحديث التصنيف الأولي على الخادم: " + (error.message || error), "error")
+        ), 350);
+      });
+    });
     window.gradeAnalysisScheduleOverview = gradeAnalysisScheduleOverview;
   }
 
