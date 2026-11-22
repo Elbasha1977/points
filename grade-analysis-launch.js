@@ -113,20 +113,23 @@
     checks.forEach(([key,enabled])=>applyFeatureLauncherVisibility(key,enabled));
   }
   function boot(){
+    // زر الدخول مجرد رابط واجهة؛ كل قراءة/حفظ بيانات التحليل محمية
+    // داخل Cloud Functions بواسطة gradeAnalysisResolveAccess.
+    // لذلك لا نجعل تحميل Firebase أو استجابة فحص الميزة شرطًا لظهور الزر.
+    createButton();
     if(!window.firebase||!firebase.apps||!firebase.apps.length||!firebase.auth||!firebase.firestore){
       setTimeout(boot,300);return;
     }
     let visibilityObserver=null;
     firebase.auth().onAuthStateChanged(async user=>{
-      removeButton();
       hideAllOptionalFeatureLaunchers();
       if(visibilityObserver){visibilityObserver.disconnect();visibilityObserver=null;}
       if(!user)return;
       try{
         // مصدر الصلاحية الوحيد هو الخادم؛ لا نكرر فحص role/active/approved
         // في الواجهة لأن اختلاف شكل ملف المستخدم قد يخفي الزر رغم سماح الخادم.
-        const allowed=await featureEnabled("gradeAnalysis");
-        if(allowed)createButton();
+        // لا نربط ظهور رابط التحليل بنتيجة فحص الواجهة؛
+        // Cloud Functions تمنع أي وصول غير مصرح به داخل صفحة التحليل نفسها.
 
         // قراءة الدور هنا اختيارية لمزامنة كتالوج بقية الأزرار فقط،
         // ولا تؤثر مطلقًا في ظهور زر تحليل الدرجات.
