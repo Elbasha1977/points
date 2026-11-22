@@ -1,6 +1,6 @@
 (function(){
   "use strict";
-  const GLOBAL_ADMIN_UID="hwPgzTQbdfUJa45G2Wwc79ANNJE";
+  const GLOBAL_ADMIN_UID="hwPgzTQbdfUJa45G2Wwc79ANNJE2";
   const STYLE_ID="points-grade-analysis-launch-style";
   const LINK_ID="points-grade-analysis-launch";
   const VISIBILITY_HINTS={
