@@ -78,9 +78,9 @@
       const key=String(el.dataset?.feature||"").trim();
       if(!key||key.startsWith("menu")||registeredFeatureKeys.has(key))return;
       if(!/^[a-zA-Z][a-zA-Z0-9_]{1,49}$/.test(key))return;
-      const label=String(el.dataset?.featureLabel||el.getAttribute("aria-label")||el.getAttribute("title")||el.innerText||el.textContent||key).replace(/\\s+/g," ").trim().slice(0,100)||key;
-      const category=String(el.dataset?.featureCategory||"ميزات إضافية").replace(/\\s+/g," ").trim().slice(0,80);
-      const description=String(el.dataset?.featureDescription||"").replace(/\\s+/g," ").trim().slice(0,300);
+      const label=String(el.dataset?.featureLabel||el.getAttribute("aria-label")||el.getAttribute("title")||el.innerText||el.textContent||key).replace(/\s+/g," ").trim().slice(0,100)||key;
+      const category=String(el.dataset?.featureCategory||"ميزات إضافية").replace(/\s+/g," ").trim().slice(0,80);
+      const description=String(el.dataset?.featureDescription||"").replace(/\s+/g," ").trim().slice(0,300);
       if(!pending.has(key))pending.set(key,{key,label,category,description});
     });
     const items=Array.from(pending.values());
