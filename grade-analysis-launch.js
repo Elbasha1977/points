@@ -19,8 +19,9 @@
       ".ga-launch-row{display:flex;justify-content:center;align-items:center;width:100%;margin:14px auto 4px}";
     document.head.appendChild(style);
   }
+  let analysisFeatureAllowed=false;
   function createButton(){
-    if(!firebase?.auth || !firebase.auth().currentUser)return;
+    if(!analysisFeatureAllowed || !firebase?.auth || !firebase.auth().currentUser)return;
     const isVisible=el=>{
       if(!el)return false;
       const cs=getComputedStyle(el);
@@ -132,6 +133,7 @@
     checks.forEach(([key,enabled])=>{
       applyFeatureLauncherVisibility(key,enabled);
       if(key==="gradeAnalysis"){
+        analysisFeatureAllowed=enabled===true;
         if(enabled)createButton();
         else removeButton();
       }
@@ -143,12 +145,13 @@
     }
     let uiObserver=null;
     firebase.auth().onAuthStateChanged(async user=>{
+      analysisFeatureAllowed=false;
       removeButton();
       if(uiObserver){uiObserver.disconnect();uiObserver=null;}
       if(!user)return;
       try{
-        const analysisAllowed=await featureEnabled("gradeAnalysis");
-        if(analysisAllowed)createButton();
+        analysisFeatureAllowed=await featureEnabled("gradeAnalysis");
+        if(analysisFeatureAllowed)createButton();
         let isGlobalAdmin=false;
         try{
           const snap=await firebase.firestore().collection("users").doc(user.uid).get();
