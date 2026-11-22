@@ -35,15 +35,16 @@
     return response.data?.success===true && response.data?.allowed===true;
   }
   function applyFeatureLauncherVisibility(featureKey,enabled){
-    const hints=VISIBILITY_HINTS[featureKey];
-    if(!hints)return;
-    const selector='a,button,[role="button"],[onclick],.menu-item,.menu-button';
+    const hints=VISIBILITY_HINTS[featureKey]||null;
+    const selector='a,button,[role="button"],[onclick],.menu-item,.menu-button,[data-feature]';
     document.querySelectorAll(selector).forEach(el=>{
       if(el.id===LINK_ID)return;
       const href=String(el.getAttribute("href")||"").toLowerCase();
       const text=String(el.innerText||el.textContent||"").replace(/\s+/g," ").trim();
-      const matches=hints.href.some(x=>href.includes(x)) ||
-        (text.length>0 && text.length<=90 && hints.text.some(x=>text.includes(x)));
+      const dataMatch=String(el.dataset?.feature||"")===featureKey;
+      const linkMatch=!!hints && hints.href.some(x=>href.includes(x));
+      const textMatch=!!hints && text.length>0 && text.length<=90 && hints.text.some(x=>text.includes(x));
+      const matches=dataMatch||linkMatch||textMatch;
       if(!matches)return;
       if(!enabled){
         if(el.dataset.pointsFeatureOriginalDisplay===undefined){
@@ -61,7 +62,13 @@
     });
   }
   async function syncFeatureLaunchers(){
-    const keys=Object.keys(VISIBILITY_HINTS);
+    const keySet=new Set(Object.keys(VISIBILITY_HINTS));
+    // اكتشاف تلقائي لمفاتيح الواجهات الجديدة؛ مفاتيح menu* تُدار في آلية قائمة الموظفين الحالية.
+    document.querySelectorAll("[data-feature]").forEach(el=>{
+      const key=String(el.dataset?.feature||"").trim();
+      if(key && !key.startsWith("menu"))keySet.add(key);
+    });
+    const keys=Array.from(keySet);
     const checks=await Promise.all(keys.map(async key=>{
       try{return [key,await featureEnabled(key)];}
       catch(error){console.warn("POINTS feature check failed:",key,error);return [key,false];}
