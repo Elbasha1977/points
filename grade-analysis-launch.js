@@ -6,7 +6,8 @@
   const VISIBILITY_HINTS={
     dailyChallenge:{href:["daily-challenge.html"],text:["تحدي اليوم","التحدي اليومي"]},
     questionHunter:{href:["question-hunter.html"],text:["صائد الأسئلة"]},
-    homeworkHonorBoard:{text:["لوحة الشرف في واجبات النقاط المنزلية"]}
+    homeworkHonorBoard:{text:["لوحة الشرف في واجبات النقاط المنزلية"]},
+    studentHomeworkResults:{text:["عرض نتائج نقاط واجباتي"]}
   };
   function installStyle(){
     if(document.getElementById(STYLE_ID))return;
