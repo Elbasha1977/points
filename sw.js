@@ -21,10 +21,13 @@ self.addEventListener("fetch", event => {
       const contentType = response.headers.get("content-type") || "";
       if (!response.ok || !contentType.includes("text/html")) return response;
       let html = await response.clone().text();
+      const launcherVersion = "20261122-feature-registry-v5";
       if (!html.includes("grade-analysis-launch.js")) {
-        const script = '<script src="./grade-analysis-launch.js?v=1" defer></script>';
-        if (/<\/body>/i.test(html)) html = html.replace(/<\/body>/i, script + "</body>");
+        const script = '<script src="./grade-analysis-launch.js?v=' + launcherVersion + '" defer></script>';
+        if (/<\\/body>/i.test(html)) html = html.replace(/<\\/body>/i, script + "</body>");
         else html += script;
+      } else {
+        html = html.replace(/grade-analysis-launch\\.js(?:\\?v=[^"' ]*)?/g, "grade-analysis-launch.js?v=" + launcherVersion);
       }
       const headers = new Headers(response.headers);
       headers.delete("content-length");
