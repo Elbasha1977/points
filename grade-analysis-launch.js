@@ -1,6 +1,15 @@
 (function(){
   "use strict";
-  const GLOBAL_ADMIN_UID="hwPgzTQbdfUJa45G2Wwc79ANNJE2";
+  async function verifyGlobalAdminFromServer(){
+    try{
+      const verify=firebase.app().functions("us-central1").httpsCallable("syncUiFeatureCatalog");
+      const response=await verify({features:[]});
+      return response.data?.success===true;
+    }catch(error){
+      console.warn("POINTS global administrator check failed:",error);
+      return false;
+    }
+  }
   const STYLE_ID="points-grade-analysis-launch-style";
   const LINK_ID="points-grade-analysis-launch";
   const VISIBILITY_HINTS={
@@ -127,10 +136,11 @@
         const snap=await firebase.firestore().collection("users").doc(user.uid).get();
         if(!snap.exists)return;
         const profile=snap.data()||{};
-        const admin=user.uid===GLOBAL_ADMIN_UID&&profile.role==="admin";
+        const adminProfile=profile.role==="admin";
+        const admin=adminProfile&&await verifyGlobalAdminFromServer();
         const staff=profile.role==="staff"&&Array.isArray(profile.classIds)&&profile.classIds.length>0;
         if(profile.active!==true||profile.approved!==true||(!admin&&!staff))return;
-        const isGlobalAdmin=admin && user.uid===GLOBAL_ADMIN_UID;
+        const isGlobalAdmin=admin;
         if(isGlobalAdmin)await syncNewUiFeatureCatalog(true);
         if(await featureEnabled("gradeAnalysis"))createButton();
         await syncFeatureLaunchers(isGlobalAdmin);
