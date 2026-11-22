@@ -70,7 +70,36 @@
       }
     });
   }
-  async function syncFeatureLaunchers(){
+  const registeredFeatureKeys=new Set();
+  async function syncNewUiFeatureCatalog(isGlobalAdmin){
+    if(!isGlobalAdmin)return;
+    const pending=new Map();
+    document.querySelectorAll("[data-feature]").forEach(el=>{
+      const key=String(el.dataset?.feature||"").trim();
+      if(!key||key.startsWith("menu")||registeredFeatureKeys.has(key))return;
+      if(!/^[a-zA-Z][a-zA-Z0-9_]{1,49}$/.test(key))return;
+      const label=String(el.dataset?.featureLabel||el.getAttribute("aria-label")||el.getAttribute("title")||el.innerText||el.textContent||key).replace(/\\s+/g," ").trim().slice(0,100)||key;
+      const category=String(el.dataset?.featureCategory||"ميزات إضافية").replace(/\\s+/g," ").trim().slice(0,80);
+      const description=String(el.dataset?.featureDescription||"").replace(/\\s+/g," ").trim().slice(0,300);
+      if(!pending.has(key))pending.set(key,{key,label,category,description});
+    });
+    const items=Array.from(pending.values());
+    if(!items.length)return;
+    const sync=firebase.app().functions("us-central1").httpsCallable("syncUiFeatureCatalog");
+    for(let i=0;i<items.length;i+=100){
+      const batch=items.slice(i,i+100);
+      try{
+        const response=await sync({features:batch});
+        if(response.data?.success!==true)throw new Error("Feature catalog synchronization was not confirmed.");
+        batch.forEach(item=>registeredFeatureKeys.add(item.key));
+      }catch(error){
+        console.warn("POINTS automatic feature registration failed:",error);
+        break;
+      }
+    }
+  }
+  async function syncFeatureLaunchers(isGlobalAdmin){
+    await syncNewUiFeatureCatalog(isGlobalAdmin);
     const keySet=new Set(Object.keys(VISIBILITY_HINTS));
     // اكتشاف تلقائي لمفاتيح الواجهات الجديدة؛ مفاتيح menu* تُدار في آلية قائمة الموظفين الحالية.
     document.querySelectorAll("[data-feature]").forEach(el=>{
@@ -101,11 +130,13 @@
         const admin=user.uid===GLOBAL_ADMIN_UID&&profile.role==="admin";
         const staff=profile.role==="staff"&&Array.isArray(profile.classIds)&&profile.classIds.length>0;
         if(profile.active!==true||profile.approved!==true||(!admin&&!staff))return;
+        const isGlobalAdmin=admin && user.uid===GLOBAL_ADMIN_UID;
+        if(isGlobalAdmin)await syncNewUiFeatureCatalog(true);
         if(await featureEnabled("gradeAnalysis"))createButton();
-        await syncFeatureLaunchers();
+        await syncFeatureLaunchers(isGlobalAdmin);
         if(document.body&&window.MutationObserver){
           let syncTimer=null;
-          const scheduleSync=()=>{clearTimeout(syncTimer);syncTimer=setTimeout(()=>syncFeatureLaunchers(),500);};
+          const scheduleSync=()=>{clearTimeout(syncTimer);syncTimer=setTimeout(()=>syncFeatureLaunchers(isGlobalAdmin),500);};
           visibilityObserver=new MutationObserver(scheduleSync);
           visibilityObserver.observe(document.body,{childList:true,subtree:true,characterData:true});
           window.addEventListener("focus",scheduleSync);
