@@ -3,6 +3,7 @@
   const STYLE_ID="points-grade-analysis-launch-style";
   const LINK_ID="points-grade-analysis-launch";
   const VISIBILITY_HINTS={
+    gradeAnalysis:{href:["grade-analysis.html"],text:["تحليل درجات الطلاب"]},
     dailyChallenge:{href:["daily-challenge.html"],text:["تحدي اليوم","التحدي اليومي"]},
     questionHunter:{href:["question-hunter.html"],text:["صائد الأسئلة"]},
     homeworkHonorBoard:{text:["لوحة الشرف في واجبات النقاط المنزلية"]},
@@ -14,21 +15,24 @@
     style.textContent="#"+LINK_ID+"{display:inline-flex;align-items:center;justify-content:center;gap:9px;padding:14px 18px;border:0;border-radius:14px;background:linear-gradient(135deg,#0f3e66,#1976d2);color:#fff!important;text-decoration:none!important;font-family:Tahoma,Arial,sans-serif;font-size:15px;font-weight:900;box-shadow:0 6px 18px rgba(15,62,102,.25);cursor:pointer;transition:transform .2s,box-shadow .2s;white-space:nowrap}"+
       "#"+LINK_ID+":hover{transform:translateY(-2px);box-shadow:0 9px 22px rgba(15,62,102,.32)}"+
       "#"+LINK_ID+" .ga-icon{font-size:22px}"+
-      "#"+LINK_ID+".ga-floating{position:fixed;left:18px;bottom:20px;z-index:99990;max-width:calc(100vw - 36px)}"+
-      "@media(max-width:600px){#"+LINK_ID+".ga-floating{left:10px;right:10px;bottom:10px;width:auto}}";
+      "#"+LINK_ID+".ga-dashboard{display:inline-flex;align-items:center;justify-content:center;gap:9px;min-height:48px;padding:12px 20px;border:0;border-radius:14px;background:linear-gradient(135deg,#0f3e66,#1976d2);color:#fff!important;text-decoration:none!important;font-family:Tahoma,Arial,sans-serif;font-size:15px;font-weight:900;box-shadow:0 6px 18px rgba(15,62,102,.20);cursor:pointer;white-space:nowrap;margin:6px auto}"+
+      ".ga-launch-row{display:flex;justify-content:center;align-items:center;width:100%;margin:14px auto 4px}";
     document.head.appendChild(style);
   }
   function createButton(){
     if(document.getElementById(LINK_ID))return;
     installStyle();
+    const host=document.querySelector(".buttons-grid");
+    if(!host)return;
     const link=document.createElement("a");
     link.id=LINK_ID;link.href="./grade-analysis.html";link.target="_blank";link.rel="noopener";
+    link.setAttribute("aria-label","فتح تحليل درجات الطلاب");
+    link.title="تحليل درجات الطلاب";
     link.innerHTML='<span class="ga-icon">📊</span><span>تحليل درجات الطلاب</span>';
-    const host=document.querySelector(".buttons-grid")||document.querySelector(".grid-container")||document.querySelector(".bottom-row");
-    if(host){link.style.minHeight="48px";host.appendChild(link);}
-    else{link.classList.add("ga-floating");document.body.appendChild(link);}
+    link.className="ga-dashboard";
+    host.appendChild(link);
   }
-  function removeButton(){document.getElementById(LINK_ID)?.remove();}
+  function removeButton(){document.getElementById(LINK_ID+"-row")?.remove();document.getElementById(LINK_ID)?.remove();}
   function hideAllOptionalFeatureLaunchers(){
     const keys=new Set(Object.keys(VISIBILITY_HINTS));
     document.querySelectorAll("[data-feature]").forEach(el=>{
@@ -113,19 +117,20 @@
     checks.forEach(([key,enabled])=>applyFeatureLauncherVisibility(key,enabled));
   }
   function boot(){
-    // زر الدخول مجرد رابط واجهة؛ كل قراءة/حفظ بيانات التحليل محمية
-    // داخل Cloud Functions بواسطة gradeAnalysisResolveAccess.
-    // لذلك لا نجعل تحميل Firebase أو استجابة فحص الميزة شرطًا لظهور الزر.
-    createButton();
+    // لا يظهر زر التحليل إلا بعد وجود جلسة دخول والتحقق من تفعيل الميزة.
     if(!window.firebase||!firebase.apps||!firebase.apps.length||!firebase.auth||!firebase.firestore){
       setTimeout(boot,300);return;
     }
     let visibilityObserver=null;
     firebase.auth().onAuthStateChanged(async user=>{
       hideAllOptionalFeatureLaunchers();
+      removeButton();
       if(visibilityObserver){visibilityObserver.disconnect();visibilityObserver=null;}
       if(!user)return;
       try{
+        // التحقق من تفعيل الميزة في الترخيص قبل إنشاء زر الدخول إلى التحليل.
+        const analysisAllowed=await featureEnabled("gradeAnalysis");
+        if(analysisAllowed)createButton();
         // مصدر الصلاحية الوحيد هو الخادم؛ لا نكرر فحص role/active/approved
         // في الواجهة لأن اختلاف شكل ملف المستخدم قد يخفي الزر رغم سماح الخادم.
         // لا نربط ظهور رابط التحليل بنتيجة فحص الواجهة؛
