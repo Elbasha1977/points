@@ -2057,6 +2057,23 @@ document.getElementById('rwMigrationCommitBtn').addEventListener('click',()=>{
  if(confirmed)runRewardsInventoryMigration(true);
 });
 </script>
-<script src="./grade-analysis-launch.js?v=20261122-grade-analysis-admin-fix-v6" defer></script>
+<script src="./grade-analysis-launch.js?v=20261122-grade-analysis-staff-entry-fix-v8" defer></script>
+
+<!-- POINTS grade-analysis entry fix: direct launcher load; worker is cache support only. -->
+<script>
+(function () {
+  "use strict";
+  if (!("serviceWorker" in navigator)) return;
+  window.addEventListener("load", function () {
+    navigator.serviceWorker.register("./sw.js", { scope: "./" })
+      .then(function (registration) {
+        console.info("POINTS service worker registered:", registration.scope);
+      })
+      .catch(function (error) {
+        console.warn("POINTS service worker registration failed:", error);
+      });
+  }, { once: true });
+})();
+</script>
 </body>
 </html>
