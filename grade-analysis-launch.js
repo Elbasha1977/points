@@ -3,6 +3,10 @@
   const GLOBAL_ADMIN_UID="hwPgzTQbdfUJa45G2Wwc79ANNJE";
   const STYLE_ID="points-grade-analysis-launch-style";
   const LINK_ID="points-grade-analysis-launch";
+  const VISIBILITY_HINTS={
+    dailyChallenge:{href:["daily-challenge.html"],text:["تحدي اليوم","التحدي اليومي"]},
+    questionHunter:{href:["question-hunter.html"],text:["صائد الأسئلة"]}
+  };
   function installStyle(){
     if(document.getElementById(STYLE_ID))return;
     const style=document.createElement("style");style.id=STYLE_ID;
@@ -24,18 +28,55 @@
     else{link.classList.add("ga-floating");document.body.appendChild(link);}
   }
   function removeButton(){document.getElementById(LINK_ID)?.remove();}
-  async function featureEnabled(){
-    if(!firebase.app().functions)throw new Error("Firebase Functions is unavailable.");
+  async function featureEnabled(featureKey){
     const check=firebase.app().functions("us-central1").httpsCallable("checkCustomerFeature");
-    const response=await check({feature:"gradeAnalysis"});
+    const response=await check({feature:featureKey});
     return response.data?.success===true && response.data?.allowed===true;
+  }
+  function applyFeatureLauncherVisibility(featureKey,enabled){
+    const hints=VISIBILITY_HINTS[featureKey];
+    if(!hints)return;
+    const selector='a,button,[role="button"],[onclick],.menu-item,.menu-button';
+    document.querySelectorAll(selector).forEach(el=>{
+      if(el.id===LINK_ID)return;
+      const href=String(el.getAttribute("href")||"").toLowerCase();
+      const text=String(el.innerText||el.textContent||"").replace(/\s+/g," ").trim();
+      const matches=hints.href.some(x=>href.includes(x)) ||
+        (text.length>0 && text.length<=90 && hints.text.some(x=>text.includes(x)));
+      if(!matches)return;
+      if(!enabled){
+        if(el.dataset.pointsFeatureOriginalDisplay===undefined){
+          el.dataset.pointsFeatureOriginalDisplay=el.style.display||"";
+        }
+        el.dataset.pointsFeatureHidden=featureKey;
+        el.style.display="none";
+        el.setAttribute("aria-hidden","true");
+      }else if(el.dataset.pointsFeatureHidden===featureKey){
+        el.style.display=el.dataset.pointsFeatureOriginalDisplay||"";
+        delete el.dataset.pointsFeatureHidden;
+        delete el.dataset.pointsFeatureOriginalDisplay;
+        el.removeAttribute("aria-hidden");
+      }
+    });
+  }
+  async function syncFeatureLaunchers(){
+    const keys=Object.keys(VISIBILITY_HINTS);
+    const checks=await Promise.all(keys.map(async key=>{
+      try{return [key,await featureEnabled(key)];}
+      catch(error){console.warn("POINTS feature check failed:",key,error);return [key,false];}
+    }));
+    checks.forEach(([key,enabled])=>applyFeatureLauncherVisibility(key,enabled));
   }
   function boot(){
     if(!window.firebase||!firebase.apps||!firebase.apps.length||!firebase.auth||!firebase.firestore){
       setTimeout(boot,300);return;
     }
+    let visibilityObserver=null;
     firebase.auth().onAuthStateChanged(async user=>{
       removeButton();
+      applyFeatureLauncherVisibility("dailyChallenge",false);
+      applyFeatureLauncherVisibility("questionHunter",false);
+      if(visibilityObserver){visibilityObserver.disconnect();visibilityObserver=null;}
       if(!user)return;
       try{
         const snap=await firebase.firestore().collection("users").doc(user.uid).get();
@@ -44,9 +85,13 @@
         const admin=user.uid===GLOBAL_ADMIN_UID&&profile.role==="admin";
         const staff=profile.role==="staff"&&Array.isArray(profile.classIds)&&profile.classIds.length>0;
         if(profile.active!==true||profile.approved!==true||(!admin&&!staff))return;
-        if(!(await featureEnabled()))return;
-        createButton();
-      }catch(error){console.warn("Grade Analysis feature is disabled or unavailable:",error);}
+        if(await featureEnabled("gradeAnalysis"))createButton();
+        await syncFeatureLaunchers();
+        if(document.body&&window.MutationObserver){
+          visibilityObserver=new MutationObserver(()=>syncFeatureLaunchers());
+          visibilityObserver.observe(document.body,{childList:true,subtree:true,characterData:true});
+        }
+      }catch(error){console.warn("POINTS feature visibility check unavailable:",error);}
     });
   }
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot,{once:true});
