@@ -1,4 +1,4 @@
-const CACHE_NAME = "points-shell-root-v4";
+const CACHE_NAME = "points-shell-root-v5";
 const APP_SHELL = ["./", "./index.html", "./manifest.webmanifest"];
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL)).then(() => self.skipWaiting()));
@@ -21,7 +21,7 @@ self.addEventListener("fetch", event => {
       const contentType = response.headers.get("content-type") || "";
       if (!response.ok || !contentType.includes("text/html")) return response;
       let html = await response.clone().text();
-      const launcherVersion = "20261122-grade-analysis-server-gate-v10";
+      const launcherVersion = "20261122-grade-analysis-visible-v11";
       const launcherTagPattern = /(<script\b[^>]*\bsrc=["'])([^"']*grade-analysis-launch\.js)(?:\?[^"']*)?(["'][^>]*>)/gi;
       let launcherTagFound = false;
       html = html.replace(launcherTagPattern, (_match, opening, source, closing) => {
