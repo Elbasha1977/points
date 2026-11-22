@@ -89,8 +89,11 @@
         if(await featureEnabled("gradeAnalysis"))createButton();
         await syncFeatureLaunchers();
         if(document.body&&window.MutationObserver){
-          visibilityObserver=new MutationObserver(()=>syncFeatureLaunchers());
+          let syncTimer=null;
+          const scheduleSync=()=>{clearTimeout(syncTimer);syncTimer=setTimeout(()=>syncFeatureLaunchers(),500);};
+          visibilityObserver=new MutationObserver(scheduleSync);
           visibilityObserver.observe(document.body,{childList:true,subtree:true,characterData:true});
+          window.addEventListener("focus",scheduleSync);
         }
       }catch(error){console.warn("POINTS feature visibility check unavailable:",error);}
     });
