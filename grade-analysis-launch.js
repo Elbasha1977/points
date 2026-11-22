@@ -5,7 +5,8 @@
   const LINK_ID="points-grade-analysis-launch";
   const VISIBILITY_HINTS={
     dailyChallenge:{href:["daily-challenge.html"],text:["تحدي اليوم","التحدي اليومي"]},
-    questionHunter:{href:["question-hunter.html"],text:["صائد الأسئلة"]}
+    questionHunter:{href:["question-hunter.html"],text:["صائد الأسئلة"]},
+    homeworkHonorBoard:{text:["لوحة الشرف في واجبات النقاط المنزلية"]}
   };
   function installStyle(){
     if(document.getElementById(STYLE_ID))return;
