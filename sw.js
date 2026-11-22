@@ -1,4 +1,4 @@
-const CACHE_NAME = "points-shell-root-v1";
+const CACHE_NAME = "points-shell-root-v2";
 const APP_SHELL = ["./", "./index.html", "./manifest.webmanifest"];
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL)).then(() => self.skipWaiting()));
@@ -11,9 +11,32 @@ self.addEventListener("activate", event => {
 self.addEventListener("fetch", event => {
   const request = event.request;
   if (request.method !== "GET" || request.mode !== "navigate") return;
-  event.respondWith(fetch(request).then(response => {
-    const copy = response.clone();
-    caches.open(CACHE_NAME).then(cache => cache.put("./index.html", copy));
-    return response;
-  }).catch(() => caches.match("./index.html")));
+  const url = new URL(request.url);
+  const isRootApp = url.origin === self.location.origin &&
+    (url.pathname === "/" || /\/index\.html$/i.test(url.pathname));
+  if (!isRootApp) return;
+  event.respondWith((async () => {
+    try {
+      const response = await fetch(request);
+      const contentType = response.headers.get("content-type") || "";
+      if (!response.ok || !contentType.includes("text/html")) return response;
+      let html = await response.clone().text();
+      if (!html.includes("grade-analysis-launch.js")) {
+        const script = '<script src="./grade-analysis-launch.js?v=1" defer></script>';
+        if (/<\/body>/i.test(html)) html = html.replace(/<\/body>/i, script + "</body>");
+        else html += script;
+      }
+      const headers = new Headers(response.headers);
+      headers.delete("content-length");
+      headers.set("cache-control", "no-cache");
+      const modified = new Response(html, { status: response.status, statusText: response.statusText, headers });
+      const cache = await caches.open(CACHE_NAME);
+      await cache.put("./index.html", modified.clone());
+      return modified;
+    } catch (error) {
+      return (await caches.match("./index.html")) || new Response("تعذر الاتصال ببرنامج POINTS.", {
+        status: 503, headers: { "content-type": "text/plain; charset=utf-8" }
+      });
+    }
+  })());
 });
