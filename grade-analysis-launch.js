@@ -114,7 +114,13 @@
       try{return [key,await featureEnabled(key)];}
       catch(error){console.warn("POINTS feature check failed:",key,error);return [key,false];}
     }));
-    checks.forEach(([key,enabled])=>applyFeatureLauncherVisibility(key,enabled));
+    checks.forEach(([key,enabled])=>{
+      applyFeatureLauncherVisibility(key,enabled);
+      if(key==="gradeAnalysis"){
+        if(enabled)createButton();
+        else removeButton();
+      }
+    });
   }
   function boot(){
     // لا يظهر زر التحليل إلا بعد وجود جلسة دخول والتحقق من تفعيل الميزة.
