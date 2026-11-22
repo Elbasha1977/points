@@ -1125,7 +1125,7 @@ setTimeout(() => {
                 </div>
                 <button id="stStartBtn" class="action-btn primary" onclick="startStudentWorksheet()" style="width:100%; font-size:18px;" disabled>⏳ جاري تحميل الورقة...</button>
                 <button type="button" class="action-btn" onclick="showMyHomeworkResults()" style="width:100%;margin-top:10px;background:#0f766e;color:white">🏅 عرض نتائج نقاط واجباتي</button>
-                <button type="button" class="action-btn" onclick="showStudentHomeworkHonorBoard()" style="width:100%;margin-top:10px;background:linear-gradient(135deg,#b45309,#f59e0b);color:white">🏆 لوحة الشرف في واجبات النقاط المنزلية</button>
+                <button type="button" class="action-btn" data-feature="homeworkHonorBoard" onclick="showStudentHomeworkHonorBoard()" style="width:100%;margin-top:10px;background:linear-gradient(135deg,#b45309,#f59e0b);color:white">🏆 لوحة الشرف في واجبات النقاط المنزلية</button>
                 <div id="myHomeworkResults" style="display:none;margin-top:14px;padding:12px;border-radius:10px;background:#ecfeff;text-align:right"></div>
             </div>
             
@@ -1139,14 +1139,14 @@ setTimeout(() => {
             </div>
             <div class="section" id="stSubmitArea" style="display:none; text-align:center;">
                 <button class="action-btn success" onclick="submitStudentAnswers()" style="width:100%; font-size:18px;">✅ إرسال الإجابات</button>
-                <button type="button" class="action-btn" onclick="showStudentHomeworkHonorBoard()" style="width:100%;margin-top:10px;background:linear-gradient(135deg,#b45309,#f59e0b);color:white">🏆 لوحة الشرف في واجبات النقاط المنزلية</button>
+                <button type="button" class="action-btn" data-feature="homeworkHonorBoard" onclick="showStudentHomeworkHonorBoard()" style="width:100%;margin-top:10px;background:linear-gradient(135deg,#b45309,#f59e0b);color:white">🏆 لوحة الشرف في واجبات النقاط المنزلية</button>
                 <div id="studentHomeworkHonorBoard" style="display:none;margin-top:16px;padding:16px;border-radius:16px;background:linear-gradient(135deg,#fffbeb,#fef3c7);text-align:right"></div>
             </div>
             
             <div class="section" id="stSuccess" style="display:none; text-align:center;">
                 <h1 style="font-size:60px; margin:0;">🎉</h1>
                 <h2 style="color:#16a34a;">تم إرسال إجاباتك بنجاح!</h2>
-                <button type="button" class="action-btn" onclick="showStudentHomeworkHonorBoard()" style="width:100%;margin-top:18px;background:linear-gradient(135deg,#b45309,#f59e0b);color:white">🏆 لوحة الشرف في واجبات النقاط المنزلية</button>
+                <button type="button" class="action-btn" data-feature="homeworkHonorBoard" onclick="showStudentHomeworkHonorBoard()" style="width:100%;margin-top:18px;background:linear-gradient(135deg,#b45309,#f59e0b);color:white">🏆 لوحة الشرف في واجبات النقاط المنزلية</button>
                 <div id="studentHomeworkHonorBoardSuccess" style="display:none;margin-top:16px;padding:16px;border-radius:16px;background:linear-gradient(135deg,#fffbeb,#fef3c7);text-align:right"></div>
             </div>
         `;
