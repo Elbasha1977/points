@@ -20,17 +20,29 @@
     document.head.appendChild(style);
   }
   function createButton(){
+    if(!firebase?.auth || !firebase.auth().currentUser)return;
+    const loginOverlay=document.querySelector(".login-overlay");
+    if(loginOverlay && getComputedStyle(loginOverlay).display!=="none" &&
+       getComputedStyle(loginOverlay).visibility!=="hidden" &&
+       Number(getComputedStyle(loginOverlay).opacity||1)>0)return;
     if(document.getElementById(LINK_ID))return;
     installStyle();
-    const host=document.querySelector(".buttons-grid");
+    const host=document.querySelector(".header-buttons")||
+      document.querySelector(".buttons-grid")||
+      document.querySelector("#mainApp .buttons-grid")||
+      document.querySelector(".container:not(.login-overlay)");
     if(!host)return;
+    const row=document.createElement("div");
+    row.className="ga-launch-row";
+    row.id=LINK_ID+"-row";
     const link=document.createElement("a");
     link.id=LINK_ID;link.href="./grade-analysis.html";link.target="_blank";link.rel="noopener";
     link.setAttribute("aria-label","فتح تحليل درجات الطلاب");
     link.title="تحليل درجات الطلاب";
     link.innerHTML='<span class="ga-icon">📊</span><span>تحليل درجات الطلاب</span>';
     link.className="ga-dashboard";
-    host.appendChild(link);
+    row.appendChild(link);
+    host.appendChild(row);
   }
   function removeButton(){document.getElementById(LINK_ID+"-row")?.remove();document.getElementById(LINK_ID)?.remove();}
   function hideAllOptionalFeatureLaunchers(){
@@ -123,27 +135,17 @@
     });
   }
   function boot(){
-    // لا يظهر زر التحليل إلا بعد وجود جلسة دخول والتحقق من تفعيل الميزة.
     if(!window.firebase||!firebase.apps||!firebase.apps.length||!firebase.auth||!firebase.firestore){
       setTimeout(boot,300);return;
     }
-    let visibilityObserver=null;
+    let uiObserver=null;
     firebase.auth().onAuthStateChanged(async user=>{
-      hideAllOptionalFeatureLaunchers();
       removeButton();
-      if(visibilityObserver){visibilityObserver.disconnect();visibilityObserver=null;}
+      if(uiObserver){uiObserver.disconnect();uiObserver=null;}
       if(!user)return;
       try{
-        // التحقق من تفعيل الميزة في الترخيص قبل إنشاء زر الدخول إلى التحليل.
         const analysisAllowed=await featureEnabled("gradeAnalysis");
         if(analysisAllowed)createButton();
-        // مصدر الصلاحية الوحيد هو الخادم؛ لا نكرر فحص role/active/approved
-        // في الواجهة لأن اختلاف شكل ملف المستخدم قد يخفي الزر رغم سماح الخادم.
-        // لا نربط ظهور رابط التحليل بنتيجة فحص الواجهة؛
-        // Cloud Functions تمنع أي وصول غير مصرح به داخل صفحة التحليل نفسها.
-
-        // قراءة الدور هنا اختيارية لمزامنة كتالوج بقية الأزرار فقط،
-        // ولا تؤثر مطلقًا في ظهور زر تحليل الدرجات.
         let isGlobalAdmin=false;
         try{
           const snap=await firebase.firestore().collection("users").doc(user.uid).get();
@@ -156,12 +158,22 @@
         await syncFeatureLaunchers(isGlobalAdmin);
         if(document.body&&window.MutationObserver){
           let syncTimer=null;
-          const scheduleSync=()=>{clearTimeout(syncTimer);syncTimer=setTimeout(()=>syncFeatureLaunchers(isGlobalAdmin),500);};
-          visibilityObserver=new MutationObserver(scheduleSync);
-          visibilityObserver.observe(document.body,{childList:true,subtree:true,characterData:true});
+          const scheduleSync=()=>{
+            clearTimeout(syncTimer);
+            syncTimer=setTimeout(()=>{
+              if(!firebase.auth().currentUser){removeButton();return;}
+              createButton();
+              syncFeatureLaunchers(isGlobalAdmin);
+            },400);
+          };
+          uiObserver=new MutationObserver(scheduleSync);
+          uiObserver.observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:["style","class"]});
           window.addEventListener("focus",scheduleSync);
         }
-      }catch(error){console.warn("POINTS feature visibility check unavailable:",error);}
+      }catch(error){
+        removeButton();
+        console.warn("POINTS feature visibility check unavailable:",error);
+      }
     });
   }
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot,{once:true});
