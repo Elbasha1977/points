@@ -413,7 +413,7 @@
       const key = kind === "high" ? "veryHigh" : "medium";
       return initialClassificationCache?.groups?.[key] || [];
     };
-    window.updateRowTotalAndStatus = function () {};
+    window.updateRowTotalAndStatus = function () { gradeAnalysisScheduleOverview(); };
     window.calculateStats = function () { gradeAnalysisScheduleOverview(); };
     window.updateAllTotalsAndStats = function () { gradeAnalysisScheduleOverview(); };
     window.updateInitialRow = function (row) {
