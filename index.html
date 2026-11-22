@@ -1798,7 +1798,7 @@ async function saveAutomaticStudentScore(answerId, correctFields, maxScore) {
    <button id="fmRefreshBtn" class="action-btn info" style="padding:10px 16px;">تحديث جدول الميزات</button>
    <div id="fmStatus" style="margin:9px 0;font-weight:bold;"></div>
    <div id="fmMatrix" style="overflow:auto;margin-top:10px;">جارٍ تحميل كتالوج الميزات...</div>
-   <small style="display:block;color:#475569;margin-top:8px;">تُزامَن الميزات المسجلة في سجل الميزات المركزي تلقائيًا عند فتح هذا الجدول أو تحديثه، وتظهر هنا لتحديد إتاحتها في CLASSIC وPRO وVIP. تبقى اختيارات الباقات السابقة واستثناءات كل عميل كما هي. لإضافة ميزة برمجية جديدة: سجّل اسمها ومفتاحها ووصفها والقيم الافتراضية للباقات مرة واحدة في FEATURE_REGISTRY، ثم اربط عملياتها بالتحقق الخادمي من المفتاح نفسه. أما الميزات المخصصة غير المسجلة برمجيًا فيمكن إضافتها من النموذج أعلاه.</small>
+   <small style="display:block;color:#475569;margin-top:8px;">تُزامَن الميزات المسجلة في سجل الميزات المركزي تلقائيًا عند فتح هذا الجدول أو تحديثه، وتظهر هنا لتحديد إتاحتها في CLASSIC وPRO وVIP. تبقى اختيارات الباقات السابقة واستثناءات كل عميل كما هي. لإضافة ميزة برمجية جديدة: سجّل اسمها ومفتاحها ووصفها والقيم الافتراضية للباقات مرة واحدة في FEATURE_REGISTRY، ثم اربط عملياتها بالتحقق الخادمي من المفتاح نفسه، وأضف data-feature="مفتاح_الميزة" إلى عنصر الواجهة المراد إظهاره أو إخفاؤه. أما الميزات المخصصة غير المسجلة برمجيًا فيمكن إضافتها من النموذج أعلاه.</small>
   </div>
 
   <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:14px;padding:16px;margin-top:20px;">
