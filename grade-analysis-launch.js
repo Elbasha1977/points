@@ -29,6 +29,14 @@
     else{link.classList.add("ga-floating");document.body.appendChild(link);}
   }
   function removeButton(){document.getElementById(LINK_ID)?.remove();}
+  function hideAllOptionalFeatureLaunchers(){
+    const keys=new Set(Object.keys(VISIBILITY_HINTS));
+    document.querySelectorAll("[data-feature]").forEach(el=>{
+      const key=String(el.dataset?.feature||"").trim();
+      if(key&&!key.startsWith("menu"))keys.add(key);
+    });
+    keys.forEach(key=>applyFeatureLauncherVisibility(key,false));
+  }
   async function featureEnabled(featureKey){
     const check=firebase.app().functions("us-central1").httpsCallable("checkCustomerFeature");
     const response=await check({feature:featureKey});
@@ -82,8 +90,7 @@
     let visibilityObserver=null;
     firebase.auth().onAuthStateChanged(async user=>{
       removeButton();
-      applyFeatureLauncherVisibility("dailyChallenge",false);
-      applyFeatureLauncherVisibility("questionHunter",false);
+      hideAllOptionalFeatureLaunchers();
       if(visibilityObserver){visibilityObserver.disconnect();visibilityObserver=null;}
       if(!user)return;
       try{
