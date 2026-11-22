@@ -24,6 +24,12 @@
     else{link.classList.add("ga-floating");document.body.appendChild(link);}
   }
   function removeButton(){document.getElementById(LINK_ID)?.remove();}
+  async function featureEnabled(){
+    if(!firebase.app().functions)throw new Error("Firebase Functions is unavailable.");
+    const check=firebase.app().functions("us-central1").httpsCallable("checkCustomerFeature");
+    const response=await check({feature:"gradeAnalysis"});
+    return response.data?.success===true && response.data?.allowed===true;
+  }
   function boot(){
     if(!window.firebase||!firebase.apps||!firebase.apps.length||!firebase.auth||!firebase.firestore){
       setTimeout(boot,300);return;
@@ -38,8 +44,9 @@
         const admin=user.uid===GLOBAL_ADMIN_UID&&profile.role==="admin";
         const staff=profile.role==="staff"&&Array.isArray(profile.classIds)&&profile.classIds.length>0;
         if(profile.active!==true||profile.approved!==true||(!admin&&!staff))return;
+        if(!(await featureEnabled()))return;
         createButton();
-      }catch(error){console.warn("Grade Analysis access check unavailable:",error);}
+      }catch(error){console.warn("Grade Analysis feature is disabled or unavailable:",error);}
     });
   }
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot,{once:true});
