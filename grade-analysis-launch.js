@@ -21,10 +21,13 @@
   }
   function createButton(){
     if(!firebase?.auth || !firebase.auth().currentUser)return;
-    const loginOverlay=document.querySelector(".login-overlay");
-    if(loginOverlay && getComputedStyle(loginOverlay).display!=="none" &&
-       getComputedStyle(loginOverlay).visibility!=="hidden" &&
-       Number(getComputedStyle(loginOverlay).opacity||1)>0)return;
+    const isVisible=el=>{
+      if(!el)return false;
+      const cs=getComputedStyle(el);
+      return cs.display!=="none"&&cs.visibility!=="hidden"&&Number(cs.opacity||1)>0&&el.getClientRects().length>0;
+    };
+    if(isVisible(document.querySelector(".login-overlay"))||
+       isVisible(document.getElementById("pointsIntroScreen")))return;
     if(document.getElementById(LINK_ID))return;
     installStyle();
     const host=document.querySelector(".header-buttons")||
