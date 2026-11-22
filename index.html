@@ -151,7 +151,7 @@ body { background: linear-gradient(135deg, #dbeafe, #c7d2fe); padding: 20px; min
         <button class="action-btn success" id="staffListBtn">👨‍🏫 الموظفون المعتمدون</button>
         <button class="action-btn warning" id="manualApproveBtn">➕ اعتماد يدوي</button>
         <button class="action-btn info" id="customerLicensesBtn" style="background:linear-gradient(135deg,#0f766e,#14b8a6);">🏢 العملاء والتراخيص</button>
-        <button class="action-btn warning" id="dailyChallengeAdminBtn" onclick="window.open('daily-challenge.html','_blank','noopener')">🔥 إدارة تحدي اليوم</button>
+        <button class="action-btn warning" id="dailyChallengeAdminBtn" data-feature="dailyChallenge" onclick="window.open('daily-challenge.html','_blank','noopener')">🔥 إدارة تحدي اليوم</button>
         <button class="action-btn danger" id="logoutBtn">🚪 تسجيل الخروج</button>
     </div>
 
@@ -1124,7 +1124,7 @@ setTimeout(() => {
                     <input id="stPin" type="password" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" autocomplete="off" placeholder="أدخل الرقم السري المخصص لك" style="width:100%;padding:12px;border-radius:10px;border:1px solid #ccc;font-size:18px;text-align:center;letter-spacing:8px;">
                 </div>
                 <button id="stStartBtn" class="action-btn primary" onclick="startStudentWorksheet()" style="width:100%; font-size:18px;" disabled>⏳ جاري تحميل الورقة...</button>
-                <button type="button" class="action-btn" onclick="showMyHomeworkResults()" style="width:100%;margin-top:10px;background:#0f766e;color:white">🏅 عرض نتائج نقاط واجباتي</button>
+                <button type="button" class="action-btn" data-feature="studentHomeworkResults" onclick="showMyHomeworkResults()" style="width:100%;margin-top:10px;background:#0f766e;color:white">🏅 عرض نتائج نقاط واجباتي</button>
                 <button type="button" class="action-btn" data-feature="homeworkHonorBoard" onclick="showStudentHomeworkHonorBoard()" style="width:100%;margin-top:10px;background:linear-gradient(135deg,#b45309,#f59e0b);color:white">🏆 لوحة الشرف في واجبات النقاط المنزلية</button>
                 <div id="myHomeworkResults" style="display:none;margin-top:14px;padding:12px;border-radius:10px;background:#ecfeff;text-align:right"></div>
             </div>
