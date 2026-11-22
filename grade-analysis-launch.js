@@ -1,0 +1,47 @@
+(function(){
+  "use strict";
+  const GLOBAL_ADMIN_UID="hwPgzTQbdfUJa45G2Wwc79ANNJE";
+  const STYLE_ID="points-grade-analysis-launch-style";
+  const LINK_ID="points-grade-analysis-launch";
+  function installStyle(){
+    if(document.getElementById(STYLE_ID))return;
+    const style=document.createElement("style");style.id=STYLE_ID;
+    style.textContent="#"+LINK_ID+"{display:inline-flex;align-items:center;justify-content:center;gap:9px;padding:14px 18px;border:0;border-radius:14px;background:linear-gradient(135deg,#0f3e66,#1976d2);color:#fff!important;text-decoration:none!important;font-family:Tahoma,Arial,sans-serif;font-size:15px;font-weight:900;box-shadow:0 6px 18px rgba(15,62,102,.25);cursor:pointer;transition:transform .2s,box-shadow .2s;white-space:nowrap}"+
+      "#"+LINK_ID+":hover{transform:translateY(-2px);box-shadow:0 9px 22px rgba(15,62,102,.32)}"+
+      "#"+LINK_ID+" .ga-icon{font-size:22px}"+
+      "#"+LINK_ID+".ga-floating{position:fixed;left:18px;bottom:20px;z-index:99990;max-width:calc(100vw - 36px)}"+
+      "@media(max-width:600px){#"+LINK_ID+".ga-floating{left:10px;right:10px;bottom:10px;width:auto}}";
+    document.head.appendChild(style);
+  }
+  function createButton(){
+    if(document.getElementById(LINK_ID))return;
+    installStyle();
+    const link=document.createElement("a");
+    link.id=LINK_ID;link.href="./grade-analysis.html";link.target="_blank";link.rel="noopener";
+    link.innerHTML='<span class="ga-icon">📊</span><span>تحليل درجات الطلاب</span>';
+    const host=document.querySelector(".buttons-grid")||document.querySelector(".grid-container")||document.querySelector(".bottom-row");
+    if(host){link.style.minHeight="48px";host.appendChild(link);}
+    else{link.classList.add("ga-floating");document.body.appendChild(link);}
+  }
+  function removeButton(){document.getElementById(LINK_ID)?.remove();}
+  function boot(){
+    if(!window.firebase||!firebase.apps||!firebase.apps.length||!firebase.auth||!firebase.firestore){
+      setTimeout(boot,300);return;
+    }
+    firebase.auth().onAuthStateChanged(async user=>{
+      removeButton();
+      if(!user)return;
+      try{
+        const snap=await firebase.firestore().collection("users").doc(user.uid).get();
+        if(!snap.exists)return;
+        const profile=snap.data()||{};
+        const admin=user.uid===GLOBAL_ADMIN_UID&&profile.role==="admin";
+        const staff=profile.role==="staff"&&Array.isArray(profile.classIds)&&profile.classIds.length>0;
+        if(profile.active!==true||profile.approved!==true||(!admin&&!staff))return;
+        createButton();
+      }catch(error){console.warn("Grade Analysis access check unavailable:",error);}
+    });
+  }
+  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot,{once:true});
+  else boot();
+})();
