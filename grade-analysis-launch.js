@@ -123,17 +123,21 @@
       if(visibilityObserver){visibilityObserver.disconnect();visibilityObserver=null;}
       if(!user)return;
       try{
-        const snap=await firebase.firestore().collection("users").doc(user.uid).get();
-        if(!snap.exists)return;
-        const profile=snap.data()||{};
-        const adminProfile=profile.role==="admin";
-        const staff=profile.role==="staff"&&Array.isArray(profile.classIds)&&profile.classIds.length>0;
-        if(profile.active!==true||profile.approved!==true||(!adminProfile&&!staff))return;
-        // التحقق النهائي من صلاحية المدير العام أو الموظف يتم من الخادم عبر
-        // checkCustomerFeature؛ لا نعتمد على استدعاء مزامنة كتالوج الواجهة
-        // كشرط إضافي لإظهار زر التحليل.
-        const isGlobalAdmin=adminProfile;
-        if(await featureEnabled("gradeAnalysis"))createButton();
+        // مصدر الصلاحية الوحيد هو الخادم؛ لا نكرر فحص role/active/approved
+        // في الواجهة لأن اختلاف شكل ملف المستخدم قد يخفي الزر رغم سماح الخادم.
+        const allowed=await featureEnabled("gradeAnalysis");
+        if(allowed)createButton();
+
+        // قراءة الدور هنا اختيارية لمزامنة كتالوج بقية الأزرار فقط،
+        // ولا تؤثر مطلقًا في ظهور زر تحليل الدرجات.
+        let isGlobalAdmin=false;
+        try{
+          const snap=await firebase.firestore().collection("users").doc(user.uid).get();
+          const profile=snap.exists?(snap.data()||{}):{};
+          isGlobalAdmin=profile.role==="admin";
+        }catch(profileError){
+          console.warn("POINTS optional profile read failed:",profileError);
+        }
         if(isGlobalAdmin)await syncNewUiFeatureCatalog(true);
         await syncFeatureLaunchers(isGlobalAdmin);
         if(document.body&&window.MutationObserver){
