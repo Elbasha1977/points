@@ -1,15 +1,5 @@
 (function(){
   "use strict";
-  async function verifyGlobalAdminFromServer(){
-    try{
-      const verify=firebase.app().functions("us-central1").httpsCallable("syncUiFeatureCatalog");
-      const response=await verify({features:[]});
-      return response.data?.success===true;
-    }catch(error){
-      console.warn("POINTS global administrator check failed:",error);
-      return false;
-    }
-  }
   const STYLE_ID="points-grade-analysis-launch-style";
   const LINK_ID="points-grade-analysis-launch";
   const VISIBILITY_HINTS={
@@ -137,12 +127,14 @@
         if(!snap.exists)return;
         const profile=snap.data()||{};
         const adminProfile=profile.role==="admin";
-        const admin=adminProfile&&await verifyGlobalAdminFromServer();
         const staff=profile.role==="staff"&&Array.isArray(profile.classIds)&&profile.classIds.length>0;
-        if(profile.active!==true||profile.approved!==true||(!admin&&!staff))return;
-        const isGlobalAdmin=admin;
-        if(isGlobalAdmin)await syncNewUiFeatureCatalog(true);
+        if(profile.active!==true||profile.approved!==true||(!adminProfile&&!staff))return;
+        // التحقق النهائي من صلاحية المدير العام أو الموظف يتم من الخادم عبر
+        // checkCustomerFeature؛ لا نعتمد على استدعاء مزامنة كتالوج الواجهة
+        // كشرط إضافي لإظهار زر التحليل.
+        const isGlobalAdmin=adminProfile;
         if(await featureEnabled("gradeAnalysis"))createButton();
+        if(isGlobalAdmin)await syncNewUiFeatureCatalog(true);
         await syncFeatureLaunchers(isGlobalAdmin);
         if(document.body&&window.MutationObserver){
           let syncTimer=null;
