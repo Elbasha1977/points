@@ -5116,13 +5116,6 @@
                 }
                 if (dataFoundCount===0) console.warn('لم توجد بيانات الفترة السابقة:', previousExam);
 
-                const allStudents=Object.values(groups).flat();
-                const currentStudents=allStudents.filter(s=>s.foundInCurrent);
-                // النسبة الكلية = متوسط نسب تحقق الفئات التي يوجد بها طلاب فقط؛ تُستبعد الفئات الخالية من المقام.
-                const populatedCategoryRates = defs.filter(def => groups[def.key].length > 0).map(def => {
-                    const categoryStudents = groups[def.key].filter(s => s.foundInCurrent);
-                    return categoryStudents.length ? categoryStudents.filter(s => s.achieved).length / categoryStudents.length * 100 : 0;
-                });
                 const overallAchievement = Number(server.overallAchievement || 0);
                 const teacher=document.getElementById('teacherSelect')?.value||'';
                 const coordinator=document.querySelector('#headerTable [data-field="coordinator"]')?.innerText.trim()||'';
