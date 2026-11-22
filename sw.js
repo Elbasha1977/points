@@ -1,4 +1,4 @@
-const CACHE_NAME = "points-shell-root-v2";
+const CACHE_NAME = "points-shell-root-v3";
 const APP_SHELL = ["./", "./index.html", "./manifest.webmanifest"];
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL)).then(() => self.skipWaiting()));
@@ -21,17 +21,18 @@ self.addEventListener("fetch", event => {
       const contentType = response.headers.get("content-type") || "";
       if (!response.ok || !contentType.includes("text/html")) return response;
       let html = await response.clone().text();
-      const launcherVersion = "20261122-feature-registry-v5";
-      if (!html.includes("grade-analysis-launch.js")) {
+      const launcherVersion = "20261122-grade-analysis-staff-entry-fix-v8";
+      const launcherTagPattern = /(<script\\b[^>]*\\bsrc=["'])([^"']*grade-analysis-launch\\.js)(?:\\?[^"']*)?(["'][^>]*>)/gi;
+      let launcherTagFound = false;
+      html = html.replace(launcherTagPattern, (_match, opening, source, closing) => {
+        launcherTagFound = true;
+        return opening + source + "?v=" + launcherVersion + closing;
+      });
+      if (!launcherTagFound) {
         const script = '<script src="./grade-analysis-launch.js?v=' + launcherVersion + '" defer></script>';
         const closingIndex = html.toLowerCase().lastIndexOf("</body>");
         if (closingIndex >= 0) html = html.slice(0, closingIndex) + script + html.slice(closingIndex);
         else html += script;
-      } else {
-        html = html.replaceAll(
-          "grade-analysis-launch.js?v=20261122-feature-registry-v4",
-          "grade-analysis-launch.js?v=" + launcherVersion
-        );
       }
       const headers = new Headers(response.headers);
       headers.delete("content-length");
