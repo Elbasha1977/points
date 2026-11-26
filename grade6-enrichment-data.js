@@ -22,9 +22,9 @@
     var r1='My name is Ali. I want to tell you about my last camping trip. Last week, I went with my mom, dad and brother. I took my raincoat because it was raining. We arrived and set the tent. When the rain stopped, we saw a rainbow. We were excited. The next morning, my mom and dad walked near the river. My brother and I went fishing, went cycling, and played tennis. At night, we were hungry. So, my dad started the fire and roasted the fish and meat. The dinner was delicious. Later, we slept outside the tent because it was small. It was fun to sleep under the stars. The next day, we went home. We really enjoyed the nice trip.';
     choice('الوحدة الأولى — Reading (1)','1. What is the text MAINLY about?','D',mcq('A fishing trip','A school trip','A science trip','A camping trip'),r1);
     choice('الوحدة الأولى — Reading (1)',"2. What does the underlined word 'enjoyed' mean?",'A',mcq('loved','called','helped','opened'),r1);
-    text('الوحدة الأولى — Reading (1)','3. What did they see after the rain stopped?','a rainbow||rainbow',r1);
+    text('الوحدة الأولى — Reading (1)','3. What did they see after the rain stopped?','a rainbow||rainbow||they saw a rainbow',r1);
     text('الوحدة الأولى — Reading (1)','4. What did Mom and Dad do the next morning?','walked near the river||they walked near the river',r1);
-    text('الوحدة الأولى — Reading (1)','5. Why did the family sleep outside the tent?','because it was small||the tent was small',r1);
+    text('الوحدة الأولى — Reading (1)','5. Why did the family sleep outside the tent?','because it was small||the tent was small||because their tent was small',r1);
     var vb1=['sour','skiing','horse','headache','park','password'];
     ["1. We drank some ______ lemon juice, but I didn't like it.","2. I go ______ when there's snow.",'3. This is a ______. I can ride it.',"4. I've got a ______. My head hurts a lot.","5. Don't ______ the car in this place. It is a bus stop!","6. What's the ______ for the Wi-Fi?"].forEach(function(q,i){add('الوحدة الأولى — Vocabulary (1) — Fill in the gaps',q,vb1[i],words(['park','headache','horse','skiing','password','sour']),'Choose a suitable word from the word box.');});
     choice('الوحدة الأولى — Vocabulary (1)','7. He was tall and ______ when he was five.','B',mcq('sad','slim','dark','long'));
@@ -55,7 +55,7 @@
     choice('الوحدة الثانية — Reading (2)',"2. What does the underlined word 'fun' mean?",'A',mcq('nice','fast','hard','short'),r2);
     text('الوحدة الثانية — Reading (2)','3. What did his uncle look like as a boy?','dark hair and green eyes||he had dark hair and green eyes',r2);
     text('الوحدة الثانية — Reading (2)','4. What could his uncle do?','run fast, play football and catch fish||he could run fast, play football and catch fish',r2);
-    text('الوحدة الثانية — Reading (2)','5. Why did his uncle work hard every morning?','to help his family in the fields||he helped his family in the fields',r2);
+    text('الوحدة الثانية — Reading (2)','5. Why did his uncle work hard every morning?','to help his family in the fields||he helped his family in the fields||he worked hard to help his family in the fields',r2);
     var vb2=['medicine','delicious','expensive','dark','sauce','cross'];
     ["1. Don't take any ______ without asking a doctor first.",'2. This cake is ______. I like eating it.',"3. His car is very ______. I can't buy it.",'4. Ali has got ______ hair.','5. I like tomato ______. It is delicious.','6. He helped the old man ______ the street.'].forEach(function(q,i){add('الوحدة الثانية — Vocabulary (2) — Fill in the gaps',q,vb2[i],words(['cross','sauce','dark','expensive','delicious','medicine']),'Choose a suitable word from the word box.');});
     choice('الوحدة الثانية — Vocabulary (2)','7. Don’t use this ______. It is not safe.','A',[{value:'A',label:'A. app'},{value:'B',label:'B. mall'},{value:'C',label:'C. park'},{value:'D',label:'D. school'}]);
@@ -85,8 +85,8 @@
     choice('الوحدة الثالثة — Reading (3)','1. What is the text MAINLY about?','A',mcq('food','countries','traditions','restaurants'),r3);
     choice('الوحدة الثالثة — Reading (3)',"2. What does the underlined word 'tasty' mean?",'C',mcq('fast','strong','delicious','important'),r3);
     text('الوحدة الثالثة — Reading (3)','3. Where does pizza come from?','Italy||Italy.',r3);
-    text('الوحدة الثالثة — Reading (3)','4. How do some people like to eat pizza?','with a knife and a fork||with knife and fork',r3);
-    text('الوحدة الثالثة — Reading (3)','5. Why do many people like to bake pizza at home?','because it is healthier||it is healthier',r3);
+    text('الوحدة الثالثة — Reading (3)','4. How do some people like to eat pizza?','with a knife and a fork||with knife and fork||they eat pizza with a knife and a fork',r3);
+    text('الوحدة الثالثة — Reading (3)','5. Why do many people like to bake pizza at home?','because it is healthier||it is healthier||because baking pizza at home is healthier',r3);
     var vb3=['pick up','baseball','pass','order','learn','bicycle'];
     ['1. You can ______ your pen and start writing.','2. He plays ______ every week.','3. Could you please ______ me the sugar.','4. He will ______ food online.','5. I want to ______ the English language.',"6. There's a ______ lane for bike riders."].forEach(function(q,i){add('الوحدة الثالثة — Vocabulary (3) — Fill in the gaps',q,vb3[i],words(['pass','pick up','baseball','order','bicycle','learn']),'Choose a suitable word from the word box.');});
     choice('الوحدة الثالثة — Vocabulary (3)','7. My uncle is a ______. He reports the news on TV.','C',mcq('doctor','teacher','reporter','photographer'));
