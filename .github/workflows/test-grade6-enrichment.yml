@@ -28,11 +28,15 @@ jobs:
           require('./grade6-enrichment-data.js');
           const data = window.buildGrade6EnrichmentWorkbookData();
           if (data.fields.length !== 128) throw new Error('Expected 128 questions, got ' + data.fields.length);
-          if (data.maxScore !== 128) throw new Error('Expected 128 total marks, got ' + data.maxScore);
+          if (data.baseMaxScore !== 128) throw new Error('Expected 128 base marks, got ' + data.baseMaxScore);
+          if (data.bonusMaxScore !== 372) throw new Error('Expected 372 bonus marks, got ' + data.bonusMaxScore);
+          if (data.maxScore !== 500) throw new Error('Expected 500 total marks, got ' + data.maxScore);
+          if (data.scoringMode !== 'base_plus_scaled_bonus') throw new Error('Unexpected scoring mode: ' + data.scoringMode);
+          if (data.fields.some(field => Number(field.points) !== 1)) throw new Error('Every question must remain worth exactly one base point.');
           if (Object.keys(data.answerKey).length < 100) throw new Error('Answer key is unexpectedly incomplete.');
           const classes = ['السادس 2','السادس 4','السادس 6'];
           if (new Set(classes).size !== 3) throw new Error('Class scope check failed.');
-          console.log('Question bank OK:', data.fields.length, 'questions;', data.maxScore, 'marks;', Object.keys(data.answerKey).length, 'answer keys.');
+          console.log('Question bank OK:', data.fields.length, 'questions; 128 base + 372 bonus =', data.maxScore, 'marks;', Object.keys(data.answerKey).length, 'answer keys.');
           NODE
       - name: Check manager inline JavaScript syntax
         run: |
