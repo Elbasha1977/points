@@ -894,6 +894,7 @@ async function createGrade6EnrichmentWorkbook() {
             if (!confirm('تم العثور على الملزمة الحالية. سيتم تحديث نصوص موضوعي الكتابة إلى الإيميلين المعتمدين (سوق واقف وKSA)، مع إبقاء سجل المحاولات والنقاط السابقة كما هو، وفتح إصدار جديد للطلاب. هل تريد المتابعة؟')) return;
             const updateBatch = firestoreDb.batch();
             updateBatch.update(own.ref, {
+                title: 'Grade 6 English Enrichment Worksheet – End of First Semester',
                 fields: data.fields,
                 maxScore: data.maxScore,
                 baseMaxScore: data.baseMaxScore,
@@ -930,7 +931,7 @@ async function createGrade6EnrichmentWorkbook() {
     const worksheetRef = firestoreDb.collection('worksheets').doc();
     const batch = firestoreDb.batch();
     batch.set(worksheetRef, {
-        title:'ملزمة اللغة الإنجليزية – نهاية الفصل الأول – الصف السادس',
+        title:'Grade 6 English Enrichment Worksheet – End of First Semester',
         layoutMode:'interactive',
         fields:data.fields,
         allowedClasses:allowedClasses,
