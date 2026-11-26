@@ -856,10 +856,13 @@ async function loadWorksheetsList() {
             const date = data.createdAt ? new Date(data.createdAt.toDate()).toLocaleDateString('ar-EG') : '—';
             const card = document.createElement('div');
             card.style.cssText = 'background: white; border: 1px solid #cbd5e1; border-radius: 12px; padding: 15px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;';
+            const releaseVersion = Math.max(1, Number(data.releaseVersion) || 1);
+            const worksheetActive = data.active !== false;
             card.innerHTML = `
-                <div><h3 style="margin: 0; color: #1e293b;">${data.title}</h3><span style="font-size: 12px; color: #64748b;">📅 ${date} | 🖱️ ${data.fields ? data.fields.length : 0} حقول</span></div>
-                <div style="display: flex; gap: 8px;">
+                <div><h3 style="margin: 0; color: #1e293b;">${safeAnswerText(data.title || 'ورقة عمل')}</h3><span style="font-size: 12px; color: #64748b;">📅 ${date} | 🖱️ ${data.fields ? data.fields.length : 0} حقول | دورة الحل: ${releaseVersion} | ${worksheetActive ? '🟢 مفعّلة' : '⏸️ متوقفة'}</span></div>
+                <div style="display: flex; gap: 8px; flex-wrap:wrap;">
                     <button onclick="copyStudentLink('${doc.id}')" style="background: #0ea5e9; color: white; border: none; padding: 8px 15px; border-radius: 8px; cursor: pointer; font-weight: bold;">🔗 رابط الطالب</button>
+                    <button onclick="reactivateWorksheet('${doc.id}', '${safeAnswerText(data.title || 'ورقة العمل')}')" style="background: #059669; color: white; border: none; padding: 8px 15px; border-radius: 8px; cursor: pointer; font-weight: bold;">🔄 تفعيل حل جديد</button>
                     <button onclick="deleteWorksheet('${doc.id}')" style="background: #ef4444; color: white; border: none; padding: 8px 15px; border-radius: 8px; cursor: pointer; font-weight: bold;">🗑️ حذف</button>
                 </div>`;
             listEl.appendChild(card);
@@ -883,6 +886,34 @@ async function migrateLegacyWorksheetAnswerKeys() {
         alert('تعذر نقل مفاتيح الإجابة. لا تحذف أي بيانات يدويًا. التفاصيل: ' + (e.message || e));
     } finally {
         if (btn) { btn.disabled = false; btn.textContent = '🔐 تأمين مفاتيح الإجابة القديمة'; }
+    }
+}
+
+async function reactivateWorksheet(docId, worksheetTitle) {
+    if (!docId) return;
+    const confirmed = confirm(
+        'سيتم فتح دورة حل جديدة لورقة العمل: ' + worksheetTitle +
+        '\\n\\nسيتمكن كل طالب من حلها مرة أخرى، وستُحفظ المحاولات والنقاط السابقة دون حذف أو استبدال.' +
+        '\\n\\nهل تريد إعادة التفعيل الآن؟'
+    );
+    if (!confirmed) return;
+    try {
+        const button = Array.from(document.querySelectorAll('#lwsList button'))
+            .find(el => (el.getAttribute('onclick') || '').includes("reactivateWorksheet('" + docId + "'"));
+        if (button) { button.disabled = true; button.textContent = '⏳ جارٍ التفعيل...'; }
+        const call = firebase.app().functions('us-central1').httpsCallable('reactivateStudentWorksheet');
+        const response = await call({ worksheetId: docId });
+        const result = response && response.data ? response.data : {};
+        if (result.success !== true || !Number.isInteger(Number(result.releaseVersion))) {
+            throw new Error('لم يؤكد الخادم فتح دورة الحل الجديدة.');
+        }
+        alert('✅ تم تفعيل حل جديد بنجاح. رقم الدورة الجديدة: ' + result.releaseVersion +
+              '\\nيمكن للطلاب الآن فتح الرابط نفسه وحل الورقة مرة أخرى.');
+        await loadWorksheetsList();
+    } catch (error) {
+        console.error('Worksheet reactivation failed:', error);
+        alert('تعذر إعادة تفعيل الورقة: ' + (error.message || error));
+        await loadWorksheetsList();
     }
 }
 
@@ -1057,6 +1088,8 @@ async function saveLiveWorksheet() {
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
             createdBy: firebaseCurrentUser.uid,
             schoolId: tenantId,
+            active: true,
+            releaseVersion: 1,
             timingEnabled: timingEnabled,
             ...(timingEnabled ? {
                 opensAt: firebase.firestore.Timestamp.fromDate(opensAt),
