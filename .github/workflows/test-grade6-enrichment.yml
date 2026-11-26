@@ -57,3 +57,26 @@ jobs:
           print('Extracted',len(p.items),'inline script blocks.')
           PY
           for f in /tmp/student-script-*.js; do node --check "$f"; done
+      - name: Check manager inline JavaScript syntax
+        run: |
+          python3 - <<'PY'
+          from html.parser import HTMLParser
+          from pathlib import Path
+          class Scripts(HTMLParser):
+              def __init__(self):
+                  super().__init__(); self.active=False; self.external=False; self.buf=[]; self.items=[]
+              def handle_starttag(self, tag, attrs):
+                  if tag.lower()=='script':
+                      self.active=True; self.external=any(k=='src' for k,v in attrs); self.buf=[]
+              def handle_data(self, data):
+                  if self.active and not self.external: self.buf.append(data)
+              def handle_endtag(self, tag):
+                  if tag.lower()=='script' and self.active:
+                      if not self.external and ''.join(self.buf).strip(): self.items.append(''.join(self.buf))
+                      self.active=False; self.external=False; self.buf=[]
+          p=Scripts(); p.feed(Path('index.html').read_text(encoding='utf-8'))
+          for i,src in enumerate(p.items):
+              Path('/tmp/manager-script-%02d.js'%i).write_text(src,encoding='utf-8')
+          print('Extracted',len(p.items),'inline script blocks.')
+          PY
+          for f in /tmp/manager-script-*.js; do node --check "$f"; done
