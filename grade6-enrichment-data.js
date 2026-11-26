@@ -110,19 +110,15 @@
       ['8. Visitors must feed the animals in the zoo. (Use: not)','visitors must not feed the animals in the zoo||visitors mustn’t feed the animals in the zoo'],
       ['9. He should come to the party tonight. (Use: not)','he should not come to the party tonight||he shouldn’t come to the party tonight']
     ].forEach(function(x){text('Grammar — Do as shown (3)',x[0],x[1]);});
-    var orderOptions=[];for(var p=1;p<=7;p++)orderOptions.push({value:String(p),label:'الجملة رقم '+p});
-    var w1='إيميل عن زيارة سوق واقف — رتّب الجمل السبع. التحية والخاتمة ثابتتان.';
-    var souqSentences=['I went to Souq Waqif.','I went by car.','It was a nice place.','I walked in the market.','I saw many shops.','I ate nice food.','I was very happy.'];
-    var souqShuffle=[3,0,5,2,6,1,4];
-    souqShuffle.forEach(function(sentenceIndex){
-      choice('الوحدة الثالثة — Writing (1) — إيميل زيارة سوق واقف','ما ترتيب هذه الجملة؟ '+souqSentences[sentenceIndex],String(sentenceIndex+1),orderOptions,sentenceIndex===souqShuffle[0]?'HI Ali\\n'+w1+'\\nBye for now':null);
-    });
-    var w2='إيميل عن زيارة المملكة العربية السعودية — رتّب الجمل السبع. التحية والخاتمة ثابتتان.';
-    var ksaSentences=['I went to KSA.','I visited Mecca.','I went by car.','I did Omrah.','I saw Kaabah.','I prayed near it.','I was very happy.'];
-    var ksaShuffle=[4,2,0,5,1,6,3];
-    ksaShuffle.forEach(function(sentenceIndex){
-      choice('الصفحة الأخيرة — الوحدة الثالثة — Writing (2) — إيميل زيارة KSA','ما ترتيب هذه الجملة؟ '+ksaSentences[sentenceIndex],String(sentenceIndex+1),orderOptions,sentenceIndex===ksaShuffle[0]?'HI Ali\\n'+w2+'\\nBye for now':null);
-    });
+    function addOrderTask(section,taskId,title,sentences,shuffle){
+      shuffle.forEach(function(sentenceIndex){
+        var id='g6e_'+(++n), position=sentenceIndex+1;
+        fields.push({id:id,section:section,prompt:sentences[sentenceIndex],points:1,type:'drag_order',taskId:taskId,taskTitle:title,correctPosition:position});
+        answerKey[id]=String(position);
+      });
+    }
+    addOrderTask('الوحدة الثالثة — Writing (1) — إيميل زيارة سوق واقف','souq_order','Arrange the sentences to complete the email about a visit to Souq Waqif. Drag each sentence into the correct position.',['I went to Souq Waqif.','I went by car.','It was a nice place.','I walked in the market.','I saw many shops.','I ate nice food.','I was very happy.'],[3,0,5,2,6,1,4]);
+    addOrderTask('الصفحة الأخيرة — الوحدة الثالثة — Writing (2) — إيميل زيارة KSA','ksa_order','Arrange the sentences to complete the email about a visit to Saudi Arabia. Drag each sentence into the correct position.',['I went to KSA.','I visited Mecca.','I went by car.','I did Omrah.','I saw Kaabah.','I prayed near it.','I was very happy.'],[4,2,0,5,1,6,3]);
     var baseMaxScore=fields.reduce(function(t,f){return t+Number(f.points||1);},0);
     var bonusMaxScore=372;
     var maxScore=baseMaxScore+bonusMaxScore;
