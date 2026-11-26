@@ -261,7 +261,7 @@ body { background: linear-gradient(135deg, #dbeafe, #c7d2fe); padding: 20px; min
         <div id="lwsListView" style="flex: 1; overflow-y: auto;">
             <div style="text-align: center; margin-bottom: 20px;">
                 <button class="action-btn primary" onclick="showCreateWorksheet()" style="font-size: 18px;">➕ إنشاء ورقة جديدة</button>
-                <button class="action-btn success" onclick="createGrade6EnrichmentWorkbook()" style="font-size:18px;background:linear-gradient(135deg,#0f766e,#059669);">📘 إنشاء ملزمة الصف السادس – نهاية الفصل الأول (128 نقطة)</button>
+                <button class="action-btn success" onclick="createGrade6EnrichmentWorkbook()" style="font-size:18px;background:linear-gradient(135deg,#0f766e,#059669);">📘 تحديث/إنشاء ملزمة الصف السادس – نهاية الفصل الأول (128 نقطة)</button>
             </div>
             <div style="display:flex;justify-content:flex-end;margin:8px 0 12px;"><button id="migrateWorksheetKeysBtn" onclick="migrateLegacyWorksheetAnswerKeys()" style="background:#7c3aed;color:#fff;border:0;padding:10px 14px;border-radius:9px;font-weight:bold;cursor:pointer;">🔐 تأمين مفاتيح الإجابة القديمة</button></div>
             <div id="lwsList" class="loading">⏳ جارٍ تحميل الأوراق...</div>
@@ -888,8 +888,37 @@ async function createGrade6EnrichmentWorkbook() {
     if (!existing.empty) {
         const own = existing.docs.find(function(d){ return d.data().createdBy === firebaseCurrentUser.uid; });
         if (own) {
-            alert('الملزمة موجودة بالفعل في قائمة أوراق العمل. استخدم رابط الطالب أو زر «تفعيل حل جديد» من بطاقتها.');
-            await loadWorksheetsList();
+            const oldData = own.data() || {};
+            const tenantId = oldData.schoolId || firebaseProfile.licenseId || firebaseProfile.schoolId || 'global';
+            const nextVersion = Math.max(1, Number(oldData.releaseVersion || 1)) + 1;
+            if (!confirm('تم العثور على الملزمة الحالية. سيتم تحديث نصوص موضوعي الكتابة إلى الإيميلين المعتمدين (سوق واقف وKSA)، مع إبقاء سجل المحاولات والنقاط السابقة كما هو، وفتح إصدار جديد للطلاب. هل تريد المتابعة؟')) return;
+            const updateBatch = firestoreDb.batch();
+            updateBatch.update(own.ref, {
+                fields: data.fields,
+                maxScore: data.maxScore,
+                releaseVersion: nextVersion,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                updatedBy: firebaseCurrentUser.uid
+            });
+            updateBatch.set(firestoreDb.collection('worksheet_answer_keys').doc(own.id), {
+                worksheetId: own.id,
+                schoolId: tenantId,
+                answerKey: data.answerKey,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                updatedBy: firebaseCurrentUser.uid
+            }, {merge:true});
+            const updateButton = document.querySelector('button[onclick="createGrade6EnrichmentWorkbook()"]');
+            if (updateButton) { updateButton.disabled=true; updateButton.textContent='⏳ جارٍ تحديث الملزمة...'; }
+            try {
+                await updateBatch.commit();
+                alert('تم تحديث الملزمة الحالية بنجاح.\\nالإصدار الجديد: '+nextVersion+'\\nتم الاحتفاظ بسجل المحاولات والنقاط السابقة.');
+                await loadWorksheetsList();
+            } catch (updateError) {
+                console.error('Update Grade 6 enrichment worksheet failed:', updateError);
+                alert('تعذر تحديث الملزمة: '+(updateError.message||updateError));
+            } finally {
+                if (updateButton) { updateButton.disabled=false; updateButton.textContent='📘 تحديث/إنشاء ملزمة الصف السادس – نهاية الفصل الأول (128 نقطة)'; }
+            }
             return;
         }
         return alert('توجد ملزمة بالعنوان نفسه أنشأها حساب آخر. لم يتم إنشاء نسخة مكررة.');
