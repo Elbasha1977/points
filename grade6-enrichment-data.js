@@ -113,7 +113,7 @@
     var w1='الوحدة الثالثة — Writing (1): Write an email of seven sentences to a friend giving information about a place. Helping questions: What is this place? Where is it? What can you see/do there?';
     for(var i=1;i<=7;i++)text('الوحدة الثالثة — Writing (1) — 7 sentences','Sentence '+i+' of 7 — Email about a place',null,w1);
     var w2='الوحدة الثالثة — Writing (2): Write a paragraph of seven sentences about a problem and asking for advice. Helping questions: What is the problem? Who are you asking for help? How could you ask for advice?';
-    for(var j=1;j<=7;j++)text('الوحدة الثالثة — Writing (2) — 7 sentences','Sentence '+j+' of 7 — Problem and asking for advice',null,w2);
+    for(var j=1;j<=7;j++)text('الصفحة الأخيرة — الوحدة الثالثة — Writing (2) — 7 sentences','Sentence '+j+' of 7 — Problem and asking for advice',null,w2);
     var maxScore=fields.reduce(function(t,f){return t+Number(f.points||1);},0);
     if(fields.length!==128||maxScore!==128)throw new Error('Worksheet count mismatch: '+fields.length+'/'+maxScore);
     return {fields:fields,answerKey:answerKey,maxScore:maxScore};
