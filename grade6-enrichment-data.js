@@ -111,31 +111,17 @@
       ['9. He should come to the party tonight. (Use: not)','he should not come to the party tonight||he shouldn’t come to the party tonight']
     ].forEach(function(x){text('Grammar — Do as shown (3)',x[0],x[1]);});
     var orderOptions=[];for(var p=1;p<=7;p++)orderOptions.push({value:String(p),label:'الجملة رقم '+p});
-    var w1='رتّب الجمل السبع لتكوين إيميل عن الهواية المفضلة. البداية والنهاية ثابتتان: Hi Ali, — Bye for now,';
-    var footballSentences=[
-      'My favourite hobby is football.',
-      'I like football very much.',
-      'I play football every day.',
-      'I play with my friends.',
-      'We play in the school yard.',
-      'It is fun and I enjoy it.',
-      'I love football very much.'
-    ];
-    footballSentences.forEach(function(sentence,i){
-      choice('الوحدة الثالثة — Writing (1) — رتّب الإيميل','ما ترتيب هذه الجملة؟ '+sentence,String(i+1),orderOptions,'Hi Ali,\\n'+w1+'\\nBye for now,');
+    var w1='إيميل عن زيارة سوق واقف — رتّب الجمل السبع. التحية والخاتمة ثابتتان.';
+    var souqSentences=['I went to Souq Waqif.','I went by car.','It was a nice place.','I walked in the market.','I saw many shops.','I ate nice food.','I was very happy.'];
+    var souqShuffle=[3,0,5,2,6,1,4];
+    souqShuffle.forEach(function(sentenceIndex){
+      choice('الوحدة الثالثة — Writing (1) — إيميل زيارة سوق واقف','ما ترتيب هذه الجملة؟ '+souqSentences[sentenceIndex],String(sentenceIndex+1),orderOptions,'Hi Ali,\\n'+w1+'\\nBye for now');
     });
-    var w2='رتّب الجمل السبع لتكوين إيميل يحكي عن يوم سيئ في حديقة الحيوان. البداية والنهاية ثابتتان: Hi Ali, — Bye for now,';
-    var zooSentences=[
-      'Last Friday, I went to the zoo.',
-      'I went with my family.',
-      'I was very happy.',
-      'But I lost my bag.',
-      'I looked for it.',
-      'A man helped me.',
-      'He found my bag.'
-    ];
-    zooSentences.forEach(function(sentence,i){
-      choice('الصفحة الأخيرة — الوحدة الثالثة — Writing (2) — رتّب الإيميل','ما ترتيب هذه الجملة؟ '+sentence,String(i+1),orderOptions,'Hi Ali,\\n'+w2+'\\nBye for now,');
+    var w2='إيميل عن زيارة المملكة العربية السعودية — رتّب الجمل السبع. التحية والخاتمة ثابتتان.';
+    var ksaSentences=['I went to KSA.','I visited Mecca.','I went by car.','I did Omrah.','I saw Kaabah.','I prayed near it.','I was very happy.'];
+    var ksaShuffle=[4,2,0,5,1,6,3];
+    ksaShuffle.forEach(function(sentenceIndex){
+      choice('الصفحة الأخيرة — الوحدة الثالثة — Writing (2) — إيميل زيارة KSA','ما ترتيب هذه الجملة؟ '+ksaSentences[sentenceIndex],String(sentenceIndex+1),orderOptions,'Hi Ali,\\n'+w2+'\\nBye for now');
     });
     var maxScore=fields.reduce(function(t,f){return t+Number(f.points||1);},0);
     if(fields.length!==128||maxScore!==128)throw new Error('Worksheet count mismatch: '+fields.length+'/'+maxScore);
