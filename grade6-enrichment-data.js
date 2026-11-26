@@ -115,13 +115,13 @@
     var souqSentences=['I went to Souq Waqif.','I went by car.','It was a nice place.','I walked in the market.','I saw many shops.','I ate nice food.','I was very happy.'];
     var souqShuffle=[3,0,5,2,6,1,4];
     souqShuffle.forEach(function(sentenceIndex){
-      choice('الوحدة الثالثة — Writing (1) — إيميل زيارة سوق واقف','ما ترتيب هذه الجملة؟ '+souqSentences[sentenceIndex],String(sentenceIndex+1),orderOptions,'Hi Ali,\\n'+w1+'\\nBye for now');
+      choice('الوحدة الثالثة — Writing (1) — إيميل زيارة سوق واقف','ما ترتيب هذه الجملة؟ '+souqSentences[sentenceIndex],String(sentenceIndex+1),orderOptions,sentenceIndex===souqShuffle[0]?'Hi Ali,\\n'+w1+'\\nBye for now':null);
     });
     var w2='إيميل عن زيارة المملكة العربية السعودية — رتّب الجمل السبع. التحية والخاتمة ثابتتان.';
     var ksaSentences=['I went to KSA.','I visited Mecca.','I went by car.','I did Omrah.','I saw Kaabah.','I prayed near it.','I was very happy.'];
     var ksaShuffle=[4,2,0,5,1,6,3];
     ksaShuffle.forEach(function(sentenceIndex){
-      choice('الصفحة الأخيرة — الوحدة الثالثة — Writing (2) — إيميل زيارة KSA','ما ترتيب هذه الجملة؟ '+ksaSentences[sentenceIndex],String(sentenceIndex+1),orderOptions,'Hi Ali,\\n'+w2+'\\nBye for now');
+      choice('الصفحة الأخيرة — الوحدة الثالثة — Writing (2) — إيميل زيارة KSA','ما ترتيب هذه الجملة؟ '+ksaSentences[sentenceIndex],String(sentenceIndex+1),orderOptions,sentenceIndex===ksaShuffle[0]?'Hi Ali,\\n'+w2+'\\nBye for now':null);
     });
     var maxScore=fields.reduce(function(t,f){return t+Number(f.points||1);},0);
     if(fields.length!==128||maxScore!==128)throw new Error('Worksheet count mismatch: '+fields.length+'/'+maxScore);
