@@ -123,9 +123,11 @@
     ksaShuffle.forEach(function(sentenceIndex){
       choice('الصفحة الأخيرة — الوحدة الثالثة — Writing (2) — إيميل زيارة KSA','ما ترتيب هذه الجملة؟ '+ksaSentences[sentenceIndex],String(sentenceIndex+1),orderOptions,sentenceIndex===ksaShuffle[0]?'HI Ali\\n'+w2+'\\nBye for now':null);
     });
-    var maxScore=fields.reduce(function(t,f){return t+Number(f.points||1);},0);
-    if(fields.length!==128||maxScore!==128)throw new Error('Worksheet count mismatch: '+fields.length+'/'+maxScore);
-    return {fields:fields,answerKey:answerKey,maxScore:maxScore};
+    var baseMaxScore=fields.reduce(function(t,f){return t+Number(f.points||1);},0);
+    var bonusMaxScore=372;
+    var maxScore=baseMaxScore+bonusMaxScore;
+    if(fields.length!==128||baseMaxScore!==128||maxScore!==500)throw new Error('Worksheet count mismatch: '+fields.length+'/'+baseMaxScore+'/'+maxScore);
+    return {fields:fields,answerKey:answerKey,maxScore:maxScore,baseMaxScore:baseMaxScore,bonusMaxScore:bonusMaxScore,scoringMode:'base_plus_scaled_bonus'};
   }
   window.buildGrade6EnrichmentWorkbookData=build;
 })();
