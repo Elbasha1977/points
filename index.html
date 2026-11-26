@@ -1642,6 +1642,26 @@ async function loadStudentAnswers() {
         answerKey = worksheetData.answerKey;
       }
       const norm = v => String(v == null ? '' : v).trim().toLowerCase().replace(/[\s.,!?;:،؛]/g,'');
+      const gradeWritingSentence = (raw, prompt) => {
+        const value = String(raw || '').trim();
+        const words = value.match(/[A-Za-z']+/g) || [];
+        const topic = String(prompt || '').toLowerCase();
+        const topicWords = topic.includes('writing (1)')
+          ? /\b(place|park|beach|museum|mall|school|zoo|city|country|street|garden|visit|see|beautiful|there|located|go|travel|friend|email)\b/i
+          : /\b(problem|sick|ill|headache|difficult|trouble|advice|help|doctor|friend|teacher|mother|father|feel|should|could|please|because|worried|study|homework)\b/i;
+        const checks = [
+          words.length >= 4,
+          /^[A-Z]/.test(value),
+          /[.!?]$/.test(value),
+          /\b(i|you|we|they|he|she|it|my|our|the|a|an)\b/i.test(value) &&
+            /\b(am|is|are|was|were|have|has|had|do|does|did|can|could|will|would|should|must|went|go|goes|see|saw|visit|visited|live|lives|like|likes|want|wants|need|needs|feel|feels|play|plays|help|helps|ask|asks|enjoy|enjoyed|stay|stayed|take|took|eat|ate|buy|bought|study|studied|work|works|worked|make|made|try|tried|tell|told|write|wrote|walk|walked|travel|travels|because)\b/i.test(value),
+          topicWords.test(value)
+        ];
+        return { score: checks.filter(Boolean).length >= 4 ? 1 : 0,
+          feedback: checks.filter(Boolean).length >= 4
+            ? 'جملة مقبولة وفق قواعد التصحيح الآلي'
+            : 'راجع طول الجملة، والحرف الكبير، وعلامة الترقيم، وتركيب الجملة وارتباطها بالموضوع' };
+      };
       let correctFields = [];
       let gradedCount = 0;
       let correctCount = 0;
@@ -1651,19 +1671,21 @@ async function loadStudentAnswers() {
         const fieldDef = Array.isArray(worksheetData.fields) ? worksheetData.fields.find(f => f.id === fieldId) : null;
         const fieldPoints = fieldDef && Number.isFinite(Number(fieldDef.points)) ? Math.max(0, Number(fieldDef.points)) : 10;
         maxPossibleScore += fieldPoints;
+        const isWriting = !!(fieldDef && String(fieldDef.section || '').includes('Writing'));
         const hasKey = Object.prototype.hasOwnProperty.call(answerKey, fieldId) && String(answerKey[fieldId]).trim() !== '';
+        const writingResult = isWriting ? gradeWritingSentence(value, fieldDef.section + ' ' + fieldDef.context) : null;
         const expectedAnswers = hasKey ? String(answerKey[fieldId]).split('||').map(norm) : [];
-        const isCorrect = hasKey && expectedAnswers.includes(norm(value));
-        if (hasKey) {
+        const isCorrect = isWriting ? writingResult.score === 1 : (hasKey && expectedAnswers.includes(norm(value)));
+        if (hasKey || isWriting) {
           gradedCount++;
           if (isCorrect) { correctFields.push(fieldId); correctCount++; suggestedScore += fieldPoints; }
         }
         return `
         <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;border-bottom:1px solid #e2e8f0;padding:10px 4px;">
           <div style="flex:1;min-width:220px;"><b>${safeAnswerText(fieldDef && fieldDef.section ? fieldDef.section : 'السؤال '+(index+1))} — ${safeAnswerText(fieldDef && fieldDef.prompt ? fieldDef.prompt : 'السؤال '+(index+1))}</b><div style="white-space:pre-wrap;overflow-wrap:anywhere;color:#334155;margin-top:5px;">${safeAnswerText(value || '— بدون إجابة —')}</div>
-          <small style="color:#64748b;">${hasKey ? 'الإجابة النموذجية: '+safeAnswerText(answerKey[fieldId].split('||').join(' / ')) : 'لا يوجد مفتاح إجابة لهذا السؤال'}</small></div>
+          <small style="color:#64748b;">${isWriting ? safeAnswerText(writingResult.feedback) : (hasKey ? 'الإجابة النموذجية: '+safeAnswerText(answerKey[fieldId].split('||').join(' / ')) : 'لا يوجد مفتاح إجابة لهذا السؤال')}</small></div>
           <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;">
-            <span style="font-weight:bold;color:${isCorrect ? '#047857' : hasKey ? '#b91c1c' : '#64748b'};">${hasKey ? (isCorrect ? '✔ صحيح آليًا' : '✘ غير صحيح آليًا') : 'بحاجة لمراجعة المعلم'}</span>
+            <span style="font-weight:bold;color:${isCorrect ? '#047857' : (hasKey || isWriting) ? '#b91c1c' : '#64748b'};">${(hasKey || isWriting) ? (isCorrect ? '✔ مقبول آليًا' : '✘ يحتاج إلى تحسين') : 'بحاجة لمراجعة المعلم'}</span>
             <label style="font-size:13px;font-weight:bold;color:#334155;">درجة السؤال:
               <input class="answer-question-grade" data-field-id="${safeAnswerText(fieldId)}" type="number" min="0" max="${fieldPoints}" step="1" value="${isCorrect ? fieldPoints : 0}" style="width:66px;padding:7px;border:2px solid #93c5fd;border-radius:8px;text-align:center;font-weight:bold;">
               <span>/ ${fieldPoints}</span>
@@ -1692,7 +1714,7 @@ async function loadStudentAnswers() {
         <div style="margin-top:12px;">${answerRows}</div>
         <div style="margin-top:12px;padding:12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;">
           <div style="font-weight:bold;color:#1e40af;margin-bottom:6px;">✏️ يمكنك تعديل درجة كل سؤال قبل الاعتماد</div>
-          <small style="color:#475569;">تُحسب الأسئلة الموضوعية آليًا، ويمكنك مراجعة الإجابات الكتابية. لكل سؤال الدرجة المحددة بجانبه، ولن تُرسل النقاط إلا بعد الضغط على زر الاعتماد.</small>
+          <small style="color:#475569;">تُصحح الأسئلة الموضوعية والكتابة آليًا بقواعد لغوية محلية دون إرسال النصوص إلى خدمات خارجية. كل جملة كتابة بدرجة واحدة. راجع الدرجة قبل اعتماد النقاط.</small>
         </div>
         <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:12px;">
           <button type="button" class="action-btn danger" data-delete-answer="${safeAnswerText(doc.id)}">🗑️ حذف هذه الإجابة</button>
