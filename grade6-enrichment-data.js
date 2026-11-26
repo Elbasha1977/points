@@ -6,11 +6,12 @@
       if(options)f.options=options;if(context)f.context=context;fields.push(f);
       if(answer!==null&&answer!==undefined&&String(answer).trim())answerKey[id]=String(answer);
     }
-    function text(s,q,a,c){add(s,q,a,null,c);}
+    function text(s,q,a,c){add(s,q,a,null,c);if(/\(Correct the verb\)/i.test(q))fields[fields.length-1].type='correct_verb';}
     function choice(s,q,a,o,c){add(s,q,a,o,c);}
     function words(a){return a.map(function(x){return {value:x,label:x};});}
+    function fillBlank(s,q,answer,bank,ctx,group){var id='g6e_'+(++n);fields.push({id:id,section:s,prompt:q,points:1,type:'fill_blank',wordBank:bank,fillGroup:group,context:ctx||''});answerKey[id]=String(answer);}
     function mcq(a,b,c,d){return [{value:'A',label:'A. '+a},{value:'B',label:'B. '+b},{value:'C',label:'C. '+c},{value:'D',label:'D. '+d}];}
-    function match(s,qs,opts,ans,ctx){qs.forEach(function(q,i){choice(s,q,ans[i],opts);});}
+    function match(s,qs,opts,ans,ctx){var group='match_'+(++n);qs.forEach(function(q,i){var id='g6e_'+(++n);fields.push({id:id,section:s,prompt:q,points:1,type:'line_match',matchGroup:group,matchOptions:opts});answerKey[id]=String(ans[i]);});}
     var m1=[{value:'a',label:'a. We must be quiet.'},{value:'b',label:"b. I've got a toothache."},{value:'c',label:'c. You should go to the dentist.'},{value:'d',label:'d. Yes, I could.'},{value:'e',label:'e. Yes, I do.'}];
     var m2=[{value:'a',label:'a. Yes, I did.'},{value:'b',label:'b. Yes, he should.'},{value:'c',label:'c. Three apples.'},{value:'d',label:'d. I was tall and slim.'},{value:'e',label:'e. OK. I like shopping.'}];
     var m3=[{value:'a',label:"a. I've got a headache."},{value:'b',label:'b. basketball'},{value:'c',label:"c. No, I couldn't."},{value:'d',label:'d. Yes, I do.'},{value:'e',label:'e. We must read.'}];
@@ -26,7 +27,7 @@
     text('Unit 1 — Reading (1)','4. What did Mom and Dad do the next morning?','walked near the river||they walked near the river',r1);
     text('Unit 1 — Reading (1)','5. Why did the family sleep outside the tent?','because it was small||the tent was small||because their tent was small',r1);
     var vb1=['sour','skiing','horse','headache','park','password'];
-    ["1. We drank some ______ lemon juice, but I didn't like it.","2. I go ______ when there's snow.",'3. This is a ______. I can ride it.',"4. I've got a ______. My head hurts a lot.","5. Don't ______ the car in this place. It is a bus stop!","6. What's the ______ for the Wi-Fi?"].forEach(function(q,i){add('Unit 1 — Vocabulary (1) — Fill in the gaps',q,vb1[i],words(['park','headache','horse','skiing','password','sour']),'Choose a suitable word from the word box.');});
+    ["1. We drank some ______ lemon juice, but I didn't like it.","2. I go ______ when there's snow.",'3. This is a ______. I can ride it.',"4. I've got a ______. My head hurts a lot.","5. Don't ______ the car in this place. It is a bus stop!","6. What's the ______ for the Wi-Fi?"].forEach(function(q,i){fillBlank('Unit 1 — Vocabulary (1) — Fill in the gaps',q,vb1[i],words(['park','headache','horse','skiing','password','sour']),'Choose a suitable word from the word box.','fill_1');});
     choice('Unit 1 — Vocabulary (1)','7. He was tall and ______ when he was five.','B',mcq('sad','slim','dark','long'));
     choice('Unit 1 — Vocabulary (1)','8. My grandfather needs ______ to read.','C',mcq('cups','cars','glasses','helmets'));
     choice('Unit 1 — Vocabulary (1)','9. I bought this ______ to study and do projects.','C',mcq('car','bike','laptop','school'));
@@ -57,7 +58,7 @@
     text('Unit 2 — Reading (2)','4. What could his uncle do?','run fast, play football and catch fish||he could run fast, play football and catch fish',r2);
     text('Unit 2 — Reading (2)','5. Why did his uncle work hard every morning?','to help his family in the fields||he helped his family in the fields||he worked hard to help his family in the fields',r2);
     var vb2=['medicine','delicious','expensive','dark','sauce','cross'];
-    ["1. Don't take any ______ without asking a doctor first.",'2. This cake is ______. I like eating it.',"3. His car is very ______. I can't buy it.",'4. Ali has got ______ hair.','5. I like tomato ______. It is delicious.','6. He helped the old man ______ the street.'].forEach(function(q,i){add('Unit 2 — Vocabulary (2) — Fill in the gaps',q,vb2[i],words(['cross','sauce','dark','expensive','delicious','medicine']),'Choose a suitable word from the word box.');});
+    ["1. Don't take any ______ without asking a doctor first.",'2. This cake is ______. I like eating it.',"3. His car is very ______. I can't buy it.",'4. Ali has got ______ hair.','5. I like tomato ______. It is delicious.','6. He helped the old man ______ the street.'].forEach(function(q,i){fillBlank('Unit 2 — Vocabulary (2) — Fill in the gaps',q,vb2[i],words(['cross','sauce','dark','expensive','delicious','medicine']),'Choose a suitable word from the word box.','fill_2');});
     choice('Unit 2 — Vocabulary (2)','7. Don’t use this ______. It is not safe.','A',[{value:'A',label:'A. app'},{value:'B',label:'B. mall'},{value:'C',label:'C. park'},{value:'D',label:'D. school'}]);
     choice('Unit 2 — Vocabulary (2)','8. My dad works as a ______. He takes photos.','D',mcq('doctor','teacher','secretary','photographer'));
     choice('Unit 2 — Vocabulary (2)','9. I go to the ______ to have a cup of coffee.','C',mcq('bill','car','café','school'));
@@ -88,7 +89,7 @@
     text('Unit 3 — Reading (3)','4. How do some people like to eat pizza?','with a knife and a fork||with knife and fork||they eat pizza with a knife and a fork',r3);
     text('Unit 3 — Reading (3)','5. Why do many people like to bake pizza at home?','because it is healthier||it is healthier||because baking pizza at home is healthier',r3);
     var vb3=['pick up','baseball','pass','order','learn','bicycle'];
-    ['1. You can ______ your pen and start writing.','2. He plays ______ every week.','3. Could you please ______ me the sugar.','4. He will ______ food online.','5. I want to ______ the English language.',"6. There's a ______ lane for bike riders."].forEach(function(q,i){add('Unit 3 — Vocabulary (3) — Fill in the gaps',q,vb3[i],words(['pass','pick up','baseball','order','bicycle','learn']),'Choose a suitable word from the word box.');});
+    ['1. You can ______ your pen and start writing.','2. He plays ______ every week.','3. Could you please ______ me the sugar.','4. He will ______ food online.','5. I want to ______ the English language.',"6. There's a ______ lane for bike riders."].forEach(function(q,i){fillBlank('Unit 3 — Vocabulary (3) — Fill in the gaps',q,vb3[i],words(['pass','pick up','baseball','order','bicycle','learn']),'Choose a suitable word from the word box.','fill_3');});
     choice('Unit 3 — Vocabulary (3)','7. My uncle is a ______. He reports the news on TV.','C',mcq('doctor','teacher','reporter','photographer'));
     choice('Unit 3 — Vocabulary (3)','8. The ______ size of my laptop is very large.','D',mcq('car','door','pencil','screen'));
     choice('Unit 3 — Vocabulary (3)','9. I went to the ______ to buy fruit.','A',mcq('market','school','hospital','museum'));
