@@ -52,7 +52,7 @@
     match('Language Function (2) — Match 2',['1. What did you look like when you were five?','2. Would you like to go to the sea?','3. Did you have to write this text?','4. How many books do you want?','5. Should he drink warm water?'],m4,['e','a','b','c','d']);
     var r2='Read the passage about the uncle who grew up in a small village on page 7 of the original PDF.';
     choice('Reading (2)','1. What is the text MAINLY about?','A',mcq('A man who worked hard','A man who had dark hair','A man who woke up early','A man who had a lot of fun'));
-    choice('Reading (2',"2. What does the underlined word 'fun' mean?",'A',mcq('nice','fast','hard','short'));
+    choice('Reading (2)',"2. What does the underlined word 'fun' mean?",'A',mcq('nice','fast','hard','short'));
     text('Reading (2)','3. What did his uncle look like as a boy?','dark hair and green eyes||he had dark hair and green eyes',r2);
     text('Reading (2)','4. What could his uncle do?','run fast, play football and catch fish||he could run fast, play football and catch fish',r2);
     text('Reading (2)','5. Why did his uncle work hard every morning?','to help his family in the fields||he helped his family in the fields',r2);
@@ -83,7 +83,7 @@
     match('Language Function (3) — Match 2',['1. What did you look like when you were five?','2. Would you like to go to the museum?','3. Did you have to water the trees?','4. How many pens do you want?','5. Should I see the doctor?'],m6,['e','a','b','c','d']);
     var r3='Read the passage about pizza on page 12 of the original PDF.';
     choice('Reading (3)','1. What is the text MAINLY about?','A',mcq('food','countries','traditions','restaurants'));
-    choice('Reading (3',"2. What does the underlined word 'tasty' mean?",'C',mcq('fast','strong','delicious','important'));
+    choice('Reading (3)',"2. What does the underlined word 'tasty' mean?",'C',mcq('fast','strong','delicious','important'));
     text('Reading (3)','3. Where does pizza come from?','Italy||Italy.',r3);
     text('Reading (3)','4. How do some people like to eat pizza?','with a knife and a fork||with knife and fork',r3);
     text('Reading (3)','5. Why do many people like to bake pizza at home?','because it is healthier||it is healthier',r3);
