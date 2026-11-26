@@ -1710,7 +1710,17 @@ async function loadStudentAnswers() {
         const hasKey = Object.prototype.hasOwnProperty.call(answerKey, fieldId) && String(answerKey[fieldId]).trim() !== '';
         const writingResult = isWriting ? gradeWritingSentence(value, fieldDef.section + ' ' + fieldDef.context) : null;
         const expectedAnswers = hasKey ? String(answerKey[fieldId]).split('||').map(norm) : [];
-        const isCorrect = isWriting ? writingResult.score === 1 : (hasKey && expectedAnswers.includes(norm(value)));
+        const isDragOrder = !!(fieldDef && fieldDef.type === 'drag_order');
+        const isPassageShortAnswer = !!(fieldDef && /reading/i.test(String(fieldDef.section || '')) && fieldDef.type !== 'choice');
+        let isKeywordMatch = false;
+        if (isPassageShortAnswer && hasKey && norm(value)) {
+          const stopWords = new Set(['the','and','for','with','from','that','this','they','them','their','there','where','when','what','which','who','why','how','are','was','were','is','am','a','an','to','of','in','on','at','by','it','he','she','we','you','i','do','does','did','because','many','much','very']);
+          const keyWords = new Set(expectedAnswers.join(' ').split(/[^a-z0-9]+/).filter(word=>word.length>2&&!stopWords.has(word)));
+          const studentWords = norm(value).split(/[^a-z0-9]+/).filter(word=>word.length>2&&!stopWords.has(word));
+          isKeywordMatch = studentWords.some(word=>keyWords.has(word));
+        }
+        const isCorrect = isDragOrder ? (hasKey && expectedAnswers.includes(norm(value))) :
+          (isWriting ? writingResult.score === 1 : (hasKey && (expectedAnswers.includes(norm(value)) || isKeywordMatch)));
         if (hasKey || isWriting) {
           gradedCount++;
           if (isCorrect) { correctFields.push(fieldId); correctCount++; suggestedScore += fieldPoints; }
