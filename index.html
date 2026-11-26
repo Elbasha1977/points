@@ -1671,7 +1671,7 @@ async function loadStudentAnswers() {
         const fieldDef = Array.isArray(worksheetData.fields) ? worksheetData.fields.find(f => f.id === fieldId) : null;
         const fieldPoints = fieldDef && Number.isFinite(Number(fieldDef.points)) ? Math.max(0, Number(fieldDef.points)) : 10;
         maxPossibleScore += fieldPoints;
-        const isWriting = !!(fieldDef && String(fieldDef.section || '').includes('Writing'));
+        const isWriting = !!(fieldDef && String(fieldDef.section || '').includes('Writing') && fieldDef.type !== 'choice');
         const hasKey = Object.prototype.hasOwnProperty.call(answerKey, fieldId) && String(answerKey[fieldId]).trim() !== '';
         const writingResult = isWriting ? gradeWritingSentence(value, fieldDef.section + ' ' + fieldDef.context) : null;
         const expectedAnswers = hasKey ? String(answerKey[fieldId]).split('||').map(norm) : [];
@@ -1714,7 +1714,7 @@ async function loadStudentAnswers() {
         <div style="margin-top:12px;">${answerRows}</div>
         <div style="margin-top:12px;padding:12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;">
           <div style="font-weight:bold;color:#1e40af;margin-bottom:6px;">✏️ يمكنك تعديل درجة كل سؤال قبل الاعتماد</div>
-          <small style="color:#475569;">تُصحح الأسئلة الموضوعية والكتابة آليًا بقواعد لغوية محلية دون إرسال النصوص إلى خدمات خارجية. كل جملة كتابة بدرجة واحدة. راجع الدرجة قبل اعتماد النقاط.</small>
+          <small style="color:#475569;">تُصحح أسئلة ترتيب الجمل آليًا بمقارنة رقم الترتيب الذي اختاره الطالب بالترتيب الصحيح. لكل جملة درجة واحدة، وتُعتمد النقاط بعد الضغط على زر الاعتماد.</small>
         </div>
         <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:12px;">
           <button type="button" class="action-btn danger" data-delete-answer="${safeAnswerText(doc.id)}">🗑️ حذف هذه الإجابة</button>
