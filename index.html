@@ -1706,7 +1706,7 @@ async function loadStudentAnswers() {
         const fieldDef = Array.isArray(worksheetData.fields) ? worksheetData.fields.find(f => f.id === fieldId) : null;
         const fieldPoints = fieldDef && Number.isFinite(Number(fieldDef.points)) ? Math.max(0, Number(fieldDef.points)) : 10;
         maxPossibleScore += fieldPoints;
-        const isWriting = !!(fieldDef && String(fieldDef.section || '').includes('Writing') && fieldDef.type !== 'choice');
+        const isWriting = !!(fieldDef && String(fieldDef.section || '').includes('Writing') && fieldDef.type !== 'choice' && fieldDef.type !== 'drag_order');
         const hasKey = Object.prototype.hasOwnProperty.call(answerKey, fieldId) && String(answerKey[fieldId]).trim() !== '';
         const writingResult = isWriting ? gradeWritingSentence(value, fieldDef.section + ' ' + fieldDef.context) : null;
         const expectedAnswers = hasKey ? String(answerKey[fieldId]).split('||').map(norm) : [];
