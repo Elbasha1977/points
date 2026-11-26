@@ -1641,7 +1641,7 @@ async function loadStudentAnswers() {
       if (!Object.keys(answerKey).length && worksheetData.answerKey && typeof worksheetData.answerKey === 'object') {
         answerKey = worksheetData.answerKey;
       }
-      const norm = v => String(v == null ? '' : v).trim().toLowerCase().replace(/[\\s.,!?;:،؛]/g,'');
+      const norm = v => String(v == null ? '' : v).trim().toLowerCase().replace(/[\s.,!?;:،؛]/g,'');
       let correctFields = [];
       let gradedCount = 0;
       let correctCount = 0;
