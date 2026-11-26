@@ -261,6 +261,7 @@ body { background: linear-gradient(135deg, #dbeafe, #c7d2fe); padding: 20px; min
         <div id="lwsListView" style="flex: 1; overflow-y: auto;">
             <div style="text-align: center; margin-bottom: 20px;">
                 <button class="action-btn primary" onclick="showCreateWorksheet()" style="font-size: 18px;">➕ إنشاء ورقة جديدة</button>
+                <button class="action-btn success" onclick="createGrade6EnrichmentWorkbook()" style="font-size:18px;background:linear-gradient(135deg,#0f766e,#059669);">📘 إنشاء ملزمة الصف السادس – نهاية الفصل الأول (128 نقطة)</button>
             </div>
             <div style="display:flex;justify-content:flex-end;margin:8px 0 12px;"><button id="migrateWorksheetKeysBtn" onclick="migrateLegacyWorksheetAnswerKeys()" style="background:#7c3aed;color:#fff;border:0;padding:10px 14px;border-radius:9px;font-weight:bold;cursor:pointer;">🔐 تأمين مفاتيح الإجابة القديمة</button></div>
             <div id="lwsList" class="loading">⏳ جارٍ تحميل الأوراق...</div>
@@ -870,6 +871,71 @@ async function loadWorksheetsList() {
     } catch (e) { listEl.innerHTML = '<div class="error">تعذر التحميل: ' + e.message + '</div>'; }
 }
 
+
+
+async function createGrade6EnrichmentWorkbook() {
+    if (!firebaseCurrentUser || !firebaseProfile) return alert('سجّل الدخول بحساب المدير أولاً.');
+    if (typeof window.buildGrade6EnrichmentWorkbookData !== 'function') {
+        return alert('تعذر تحميل بنك أسئلة الملزمة. حدّث الصفحة ثم حاول مرة أخرى.');
+    }
+    const allowedClasses = ['السادس 2','السادس 4','السادس 6'];
+    const data = window.buildGrade6EnrichmentWorkbookData();
+    if (!data || data.fields.length !== 128 || data.maxScore !== 128) {
+        return alert('توقف الإنشاء: عدد الأسئلة أو الدرجات لا يطابق الملزمة المعتمدة.');
+    }
+    const existing = await firestoreDb.collection('worksheets')
+        .where('title','==','ملزمة اللغة الإنجليزية – نهاية الفصل الأول – الصف السادس').get();
+    if (!existing.empty) {
+        const own = existing.docs.find(function(d){ return d.data().createdBy === firebaseCurrentUser.uid; });
+        if (own) {
+            alert('الملزمة موجودة بالفعل في قائمة أوراق العمل. استخدم رابط الطالب أو زر «تفعيل حل جديد» من بطاقتها.');
+            await loadWorksheetsList();
+            return;
+        }
+        return alert('توجد ملزمة بالعنوان نفسه أنشأها حساب آخر. لم يتم إنشاء نسخة مكررة.');
+    }
+    const tenantId = firebaseProfile.licenseId || firebaseProfile.schoolId || 'global';
+    const worksheetRef = firestoreDb.collection('worksheets').doc();
+    const batch = firestoreDb.batch();
+    batch.set(worksheetRef, {
+        title:'ملزمة اللغة الإنجليزية – نهاية الفصل الأول – الصف السادس',
+        layoutMode:'interactive',
+        fields:data.fields,
+        allowedClasses:allowedClasses,
+        schoolId:tenantId,
+        createdBy:firebaseCurrentUser.uid,
+        createdAt:firebase.firestore.FieldValue.serverTimestamp(),
+        active:true,
+        releaseVersion:1,
+        maxScore:data.maxScore,
+        timingEnabled:false,
+        sourceTitle:'English Enrichment Sheets – End of First Semester – Modules 3+4+5',
+        sourcePages:'PDF pages 2–18; printed worksheet pages 1–17'
+    });
+    batch.set(firestoreDb.collection('worksheet_answer_keys').doc(worksheetRef.id), {
+        worksheetId:worksheetRef.id,
+        schoolId:tenantId,
+        answerKey:data.answerKey,
+        createdAt:firebase.firestore.FieldValue.serverTimestamp(),
+        createdBy:firebaseCurrentUser.uid
+    });
+    const btn = document.querySelector('button[onclick="createGrade6EnrichmentWorkbook()"]');
+    if (btn) { btn.disabled=true; btn.textContent='⏳ جارٍ إنشاء الملزمة...'; }
+    try {
+        await batch.commit();
+        const url = 'https://student.abuhazem.com/?id=' + encodeURIComponent(worksheetRef.id);
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            try { await navigator.clipboard.writeText(url); } catch (_) {}
+        }
+        alert('تم إنشاء الملزمة التفاعلية بنجاح.\\nعدد الأسئلة: 128\\nالدرجة الكلية: 128 نقطة\\nالشعب: ' + allowedClasses.join('، ') + '\\n\\nرابط الطالب:\\n' + url);
+        await loadWorksheetsList();
+    } catch (error) {
+        console.error('Create Grade 6 enrichment workbook failed:', error);
+        alert('تعذر إنشاء الملزمة: ' + (error.message || error));
+    } finally {
+        if (btn) { btn.disabled=false; btn.textContent='📘 إنشاء ملزمة الصف السادس – نهاية الفصل الأول (128 نقطة)'; }
+    }
+}
 
 async function migrateLegacyWorksheetAnswerKeys() {
     if (!confirm('سيتم نقل مفاتيح الإجابة القديمة من أوراق العمل العامة إلى مجموعة خاصة، ثم حذفها من المستندات العامة. هل تريد المتابعة؟')) return;
@@ -2109,5 +2175,6 @@ document.getElementById('rwMigrationCommitBtn').addEventListener('click',()=>{
   }, { once: true });
 })();
 </script>
+<script src="./grade6-enrichment-data.js"></script>
 </body>
 </html>
