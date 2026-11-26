@@ -880,7 +880,7 @@ async function createGrade6EnrichmentWorkbook() {
     }
     const allowedClasses = ['السادس 2','السادس 4','السادس 6'];
     const data = window.buildGrade6EnrichmentWorkbookData();
-    if (!data || data.fields.length !== 128 || data.maxScore !== 128) {
+    if (!data || data.fields.length !== 128 || data.baseMaxScore !== 128 || data.bonusMaxScore !== 372 || data.maxScore !== 500) {
         return alert('توقف الإنشاء: عدد الأسئلة أو الدرجات لا يطابق الملزمة المعتمدة.');
     }
     const existing = await firestoreDb.collection('worksheets')
@@ -896,6 +896,9 @@ async function createGrade6EnrichmentWorkbook() {
             updateBatch.update(own.ref, {
                 fields: data.fields,
                 maxScore: data.maxScore,
+                baseMaxScore: data.baseMaxScore,
+                bonusMaxScore: data.bonusMaxScore,
+                scoringMode: data.scoringMode,
                 releaseVersion: nextVersion,
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
                 updatedBy: firebaseCurrentUser.uid
@@ -911,7 +914,7 @@ async function createGrade6EnrichmentWorkbook() {
             if (updateButton) { updateButton.disabled=true; updateButton.textContent='⏳ جارٍ تحديث الملزمة...'; }
             try {
                 await updateBatch.commit();
-                alert('تم تحديث الملزمة الحالية بنجاح.\\nالإصدار الجديد: '+nextVersion+'\\nتم الاحتفاظ بسجل المحاولات والنقاط السابقة.');
+                alert('تم تحديث الملزمة الحالية بنجاح.\\nالدرجة الكلية: 500 نقطة (128 أساسية + 372 مكافأة متدرجة).\\nالإصدار الجديد: '+nextVersion+'\\nتم الاحتفاظ بسجل المحاولات والنقاط السابقة.');
                 await loadWorksheetsList();
             } catch (updateError) {
                 console.error('Update Grade 6 enrichment worksheet failed:', updateError);
@@ -937,6 +940,9 @@ async function createGrade6EnrichmentWorkbook() {
         active:true,
         releaseVersion:1,
         maxScore:data.maxScore,
+        baseMaxScore:data.baseMaxScore,
+        bonusMaxScore:data.bonusMaxScore,
+        scoringMode:data.scoringMode,
         timingEnabled:false,
         sourceTitle:'English Enrichment Sheets – End of First Semester – Modules 3+4+5',
         sourcePages:'PDF pages 2–18; printed worksheet pages 1–17'
@@ -956,7 +962,7 @@ async function createGrade6EnrichmentWorkbook() {
         if (navigator.clipboard && navigator.clipboard.writeText) {
             try { await navigator.clipboard.writeText(url); } catch (_) {}
         }
-        alert('تم إنشاء الملزمة التفاعلية بنجاح.\\nعدد الأسئلة: 128\\nالدرجة الكلية: 128 نقطة\\nالشعب: ' + allowedClasses.join('، ') + '\\n\\nرابط الطالب:\\n' + url);
+        alert('تم إنشاء الملزمة التفاعلية بنجاح.\\nعدد الأسئلة: 128\\nالدرجة الكلية: 500 نقطة (128 أساسية + 372 مكافأة متدرجة)\\nالشعب: ' + allowedClasses.join('، ') + '\\n\\nرابط الطالب:\\n' + url);
         await loadWorksheetsList();
     } catch (error) {
         console.error('Create Grade 6 enrichment workbook failed:', error);
@@ -1722,8 +1728,14 @@ async function loadStudentAnswers() {
           </div>
         </div>`;
       }).join('');
+      const isGrade6BonusWorksheet = worksheetData.scoringMode === 'base_plus_scaled_bonus';
+      const grade6BonusPoints = isGrade6BonusWorksheet ? Math.round(372 * correctCount / 128) : 0;
+      if (isGrade6BonusWorksheet) { suggestedScore += grade6BonusPoints; maxPossibleScore = 500; }
       const card = document.createElement('section');
       card.id = 'answer-card-' + doc.id;
+      card.dataset.isGrade6Bonus = isGrade6BonusWorksheet ? 'true' : 'false';
+      card.dataset.bonusPoints = String(grade6BonusPoints);
+      card.dataset.correctCount = String(correctCount);
       card.style.cssText = 'border:1px solid #cbd5e1;border-radius:12px;padding:16px;margin:0 0 14px;background:#fff;';
       card.innerHTML = `
         <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;background:#f1f5f9;padding:12px;border-radius:8px;">
@@ -1735,7 +1747,7 @@ async function loadStudentAnswers() {
             <div style="font-size:25px;font-weight:900;color:#1e3a8a;">${suggestedScore} / ${maxPossibleScore}</div>
             <div style="margin-top:7px;padding:7px 10px;background:#fff7ed;border:1px solid #fdba74;border-radius:9px;">
               <small style="font-weight:bold;color:#9a3412;">الدرجة النهائية بعد التعديل</small>
-              <div id="final-score-${doc.id}" style="font-size:27px;font-weight:900;color:#c2410c;">${suggestedScore} / ${maxPossibleScore}</div>
+              <div id="final-score-${doc.id}" style="font-size:27px;font-weight:900;color:#c2410c;">${suggestedScore} / ${maxPossibleScore}</div>${isGrade6BonusWorksheet ? '<small id="bonus-score-' + doc.id + '" style="display:block;margin-top:5px;color:#047857;font-weight:bold;">المكافأة: ' + grade6BonusPoints + ' / 372</small>' : ''}
             </div>
             <small>تمت مراجعة الإجابات النموذجية المتاحة: ${gradedCount} من ${Object.keys(answerMap).length} سؤال</small>
           </div>
@@ -1743,7 +1755,7 @@ async function loadStudentAnswers() {
         <div style="margin-top:12px;">${answerRows}</div>
         <div style="margin-top:12px;padding:12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;">
           <div style="font-weight:bold;color:#1e40af;margin-bottom:6px;">✏️ يمكنك تعديل درجة كل سؤال قبل الاعتماد</div>
-          <small style="color:#475569;">تُصحح أسئلة ترتيب الجمل آليًا بمقارنة رقم الترتيب الذي اختاره الطالب بالترتيب الصحيح. لكل جملة درجة واحدة، وتُعتمد النقاط بعد الضغط على زر الاعتماد.</small>
+          <small style="color:#475569;">تُصحح أسئلة الملزمة آليًا، ولكل سؤال درجة واحدة. في ملزمة الصف السادس تُضاف مكافأة متدرجة حتى 372 نقطة وفق عدد الإجابات الصحيحة، ليصبح المجموع 500 نقطة.</small>
         </div>
         <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:12px;">
           <button type="button" class="action-btn danger" data-delete-answer="${safeAnswerText(doc.id)}">🗑️ حذف هذه الإجابة</button>
@@ -1780,19 +1792,25 @@ function recalculateStudentAnswerScore(answerId) {
   const card = document.getElementById('answer-card-' + answerId);
   if (!card) return;
   const inputs = card.querySelectorAll('.answer-question-grade');
-  let total = 0;
-  let max = 0;
+  let baseTotal = 0;
+  let baseMax = 0;
   inputs.forEach(input => {
     const questionMax = Number(input.max || 10);
-    max += questionMax;
+    baseMax += questionMax;
     let value = Number(input.value);
     if (!Number.isFinite(value)) value = 0;
     value = Math.max(0, Math.min(questionMax, value));
     input.value = value;
-    total += value;
+    baseTotal += value;
   });
+  const isBonus = card.dataset.isGrade6Bonus === 'true';
+  const bonus = isBonus ? Number(card.dataset.bonusPoints || 0) : 0;
+  const total = baseTotal + bonus;
+  const max = isBonus ? 500 : baseMax;
   const display = document.getElementById('final-score-' + answerId);
   if (display) display.textContent = total + ' / ' + max;
+  const bonusDisplay = document.getElementById('bonus-score-' + answerId);
+  if (bonusDisplay) bonusDisplay.textContent = 'المكافأة: ' + bonus + ' / 372';
 }
 
 async function awardHomeworkPointsToEmployee(answerId, score) {
@@ -1818,20 +1836,23 @@ async function saveAutomaticStudentScore(answerId, correctFields, maxScore) {
     const card = document.getElementById('answer-card-' + answerId);
     if (!card) throw new Error('تعذر العثور على بطاقة إجابة الطالب.');
     const gradeInputs = Array.from(card.querySelectorAll('.answer-question-grade'));
-    const calculatedMax = gradeInputs.reduce((sum, input) => sum + Number(input.max || 10), 0);
+    const calculatedBaseMax = gradeInputs.reduce((sum, input) => sum + Number(input.max || 10), 0);
     if (!gradeInputs.length) throw new Error('لا توجد درجات أسئلة قابلة للاعتماد.');
-    if (Number(maxScore) !== calculatedMax) maxScore = calculatedMax;
+    const isGrade6Bonus = card.dataset.isGrade6Bonus === 'true';
+    const bonusPoints = isGrade6Bonus ? Number(card.dataset.bonusPoints || 0) : 0;
+    maxScore = isGrade6Bonus ? 500 : calculatedBaseMax;
 
-    let score = 0;
+    let baseScore = 0;
     gradeInputs.forEach(input => {
       const value = Number(input.value);
       const questionMax = Number(input.max || 10);
       if (!Number.isFinite(value) || value < 0 || value > questionMax) {
         throw new Error('تأكد من أن درجة كل سؤال لا تتجاوز الدرجة المحددة له.');
       }
-      score += value;
+      baseScore += value;
     });
-    score = Math.round(score * 100) / 100;
+    baseScore = Math.round(baseScore * 100) / 100;
+    const score = baseScore + bonusPoints;
 
     const answerRef = firestoreDb.collection('student_answers').doc(answerId);
     const existingSnap = await answerRef.get();
@@ -1843,15 +1864,19 @@ async function saveAutomaticStudentScore(answerId, correctFields, maxScore) {
       return;
     }
 
-    const automaticScore = gradeInputs.reduce((sum, input) => {
+    const automaticBaseScore = gradeInputs.reduce((sum, input) => {
       const fieldId = input.getAttribute('data-field-id');
       return sum + (correctFields.includes(fieldId) ? Number(input.max || 10) : 0);
     }, 0);
-    const wasAdjusted = score !== automaticScore;
+    const automaticBonus = isGrade6Bonus ? Math.round(372 * correctFields.length / 128) : 0;
+    const automaticScore = automaticBaseScore + automaticBonus;
+    const wasAdjusted = baseScore !== automaticBaseScore;
 
     const confirmText =
       'مراجعة الدرجة قبل الإرسال\n\n' +
-      'الدرجة التلقائية: ' + automaticScore + ' / ' + maxScore + '\n' +
+      'درجة الأسئلة: ' + baseScore + ' / ' + calculatedBaseMax + '\n' +
+      (isGrade6Bonus ? 'المكافأة: ' + bonusPoints + ' / 372 (التلقائية: ' + automaticBonus + ')\n' : '') +
+      'الدرجة التلقائية الكلية: ' + automaticScore + ' / ' + maxScore + '\n' +
       'الدرجة بعد التعديل: ' + score + ' / ' + maxScore + '\n\n' +
       'هل تريد اعتماد هذه الدرجة وإرسال ' + score + ' نقطة إلى برنامج النقاط؟';
     if (!confirm(confirmText)) return;
@@ -1865,6 +1890,9 @@ async function saveAutomaticStudentScore(answerId, correctFields, maxScore) {
     await answerRef.update({
       correctFields: correctFields,
       score: score,
+      baseScore: baseScore,
+      bonusScore: bonusPoints,
+      correctCount: correctFields.length,
       maxScore: maxScore,
       gradingMode: wasAdjusted ? 'manual_adjusted' : 'automatic',
       scoreAdjustedByAdmin: wasAdjusted,
