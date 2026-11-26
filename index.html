@@ -1645,21 +1645,28 @@ async function loadStudentAnswers() {
       let correctFields = [];
       let gradedCount = 0;
       let correctCount = 0;
+      let suggestedScore = 0;
+      let maxPossibleScore = 0;
       const answerRows = Object.entries(answerMap).map(([fieldId, value], index) => {
+        const fieldDef = Array.isArray(worksheetData.fields) ? worksheetData.fields.find(f => f.id === fieldId) : null;
+        const fieldPoints = fieldDef && Number.isFinite(Number(fieldDef.points)) ? Math.max(0, Number(fieldDef.points)) : 10;
+        maxPossibleScore += fieldPoints;
         const hasKey = Object.prototype.hasOwnProperty.call(answerKey, fieldId) && String(answerKey[fieldId]).trim() !== '';
+        const expectedAnswers = hasKey ? String(answerKey[fieldId]).split('||').map(norm) : [];
+        const isCorrect = hasKey && expectedAnswers.includes(norm(value));
         if (hasKey) {
           gradedCount++;
-          if (norm(value) === norm(answerKey[fieldId])) { correctFields.push(fieldId); correctCount++; }
+          if (isCorrect) { correctFields.push(fieldId); correctCount++; suggestedScore += fieldPoints; }
         }
         return `
         <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;border-bottom:1px solid #e2e8f0;padding:10px 4px;">
-          <div style="flex:1;min-width:220px;"><b>السؤال ${index+1}</b><div style="white-space:pre-wrap;overflow-wrap:anywhere;color:#334155;">${safeAnswerText(value || '— بدون إجابة —')}</div>
-          <small style="color:#64748b;">${hasKey ? 'الإجابة النموذجية: '+safeAnswerText(answerKey[fieldId]) : 'لا يوجد مفتاح إجابة لهذا السؤال'}</small></div>
+          <div style="flex:1;min-width:220px;"><b>${safeAnswerText(fieldDef && fieldDef.section ? fieldDef.section : 'السؤال '+(index+1))} — ${safeAnswerText(fieldDef && fieldDef.prompt ? fieldDef.prompt : 'السؤال '+(index+1))}</b><div style="white-space:pre-wrap;overflow-wrap:anywhere;color:#334155;margin-top:5px;">${safeAnswerText(value || '— بدون إجابة —')}</div>
+          <small style="color:#64748b;">${hasKey ? 'الإجابة النموذجية: '+safeAnswerText(answerKey[fieldId].split('||').join(' / ')) : 'لا يوجد مفتاح إجابة لهذا السؤال'}</small></div>
           <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;">
-            <span style="font-weight:bold;color:${hasKey && norm(value) === norm(answerKey[fieldId]) ? '#047857' : hasKey ? '#b91c1c' : '#64748b'};">${hasKey ? (norm(value) === norm(answerKey[fieldId]) ? '✔ صحيح آليًا' : '✘ غير صحيح آليًا') : 'بحاجة لمراجعة المعلم'}</span>
+            <span style="font-weight:bold;color:${isCorrect ? '#047857' : hasKey ? '#b91c1c' : '#64748b'};">${hasKey ? (isCorrect ? '✔ صحيح آليًا' : '✘ غير صحيح آليًا') : 'بحاجة لمراجعة المعلم'}</span>
             <label style="font-size:13px;font-weight:bold;color:#334155;">درجة السؤال:
-              <input class="answer-question-grade" data-field-id="${safeAnswerText(fieldId)}" type="number" min="0" max="10" step="1" value="${hasKey && norm(value) === norm(answerKey[fieldId]) ? 10 : 0}" style="width:66px;padding:7px;border:2px solid #93c5fd;border-radius:8px;text-align:center;font-weight:bold;">
-              <span>/ 10</span>
+              <input class="answer-question-grade" data-field-id="${safeAnswerText(fieldId)}" type="number" min="0" max="${fieldPoints}" step="1" value="${isCorrect ? fieldPoints : 0}" style="width:66px;padding:7px;border:2px solid #93c5fd;border-radius:8px;text-align:center;font-weight:bold;">
+              <span>/ ${fieldPoints}</span>
             </label>
           </div>
         </div>`;
@@ -1674,10 +1681,10 @@ async function loadStudentAnswers() {
           <small>تاريخ الإرسال: ${a.submittedAt && a.submittedAt.toDate ? a.submittedAt.toDate().toLocaleString('ar-QA') : '—'}</small></div>
           <div style="text-align:center;min-width:160px;">
             <div style="font-weight:bold;color:#047857;">الدرجة المقترحة آليًا</div>
-            <div style="font-size:25px;font-weight:900;color:#1e3a8a;">${correctCount*10} / ${Object.keys(answerMap).length*10}</div>
+            <div style="font-size:25px;font-weight:900;color:#1e3a8a;">${suggestedScore} / ${maxPossibleScore}</div>
             <div style="margin-top:7px;padding:7px 10px;background:#fff7ed;border:1px solid #fdba74;border-radius:9px;">
               <small style="font-weight:bold;color:#9a3412;">الدرجة النهائية بعد التعديل</small>
-              <div id="final-score-${doc.id}" style="font-size:27px;font-weight:900;color:#c2410c;">${correctCount*10} / ${Object.keys(answerMap).length*10}</div>
+              <div id="final-score-${doc.id}" style="font-size:27px;font-weight:900;color:#c2410c;">${suggestedScore} / ${maxPossibleScore}</div>
             </div>
             <small>تمت مراجعة الإجابات النموذجية المتاحة: ${gradedCount} من ${Object.keys(answerMap).length} سؤال</small>
           </div>
@@ -1685,7 +1692,7 @@ async function loadStudentAnswers() {
         <div style="margin-top:12px;">${answerRows}</div>
         <div style="margin-top:12px;padding:12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;">
           <div style="font-weight:bold;color:#1e40af;margin-bottom:6px;">✏️ يمكنك تعديل درجة كل سؤال قبل الاعتماد</div>
-          <small style="color:#475569;">غيّر الدرجة من 0 إلى 10 لكل سؤال. سيتم جمع الدرجات تلقائيًا، ولن تُرسل النقاط إلا بعد الضغط على زر الاعتماد.</small>
+          <small style="color:#475569;">تُحسب الأسئلة الموضوعية آليًا، ويمكنك مراجعة الإجابات الكتابية. لكل سؤال الدرجة المحددة بجانبه، ولن تُرسل النقاط إلا بعد الضغط على زر الاعتماد.</small>
         </div>
         <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:12px;">
           <button type="button" class="action-btn danger" data-delete-answer="${safeAnswerText(doc.id)}">🗑️ حذف هذه الإجابة</button>
@@ -1723,11 +1730,13 @@ function recalculateStudentAnswerScore(answerId) {
   if (!card) return;
   const inputs = card.querySelectorAll('.answer-question-grade');
   let total = 0;
-  let max = inputs.length * 10;
+  let max = 0;
   inputs.forEach(input => {
+    const questionMax = Number(input.max || 10);
+    max += questionMax;
     let value = Number(input.value);
     if (!Number.isFinite(value)) value = 0;
-    value = Math.max(0, Math.min(10, value));
+    value = Math.max(0, Math.min(questionMax, value));
     input.value = value;
     total += value;
   });
@@ -1758,15 +1767,16 @@ async function saveAutomaticStudentScore(answerId, correctFields, maxScore) {
     const card = document.getElementById('answer-card-' + answerId);
     if (!card) throw new Error('تعذر العثور على بطاقة إجابة الطالب.');
     const gradeInputs = Array.from(card.querySelectorAll('.answer-question-grade'));
-    const calculatedMax = gradeInputs.length * 10;
+    const calculatedMax = gradeInputs.reduce((sum, input) => sum + Number(input.max || 10), 0);
     if (!gradeInputs.length) throw new Error('لا توجد درجات أسئلة قابلة للاعتماد.');
     if (Number(maxScore) !== calculatedMax) maxScore = calculatedMax;
 
     let score = 0;
     gradeInputs.forEach(input => {
       const value = Number(input.value);
-      if (!Number.isFinite(value) || value < 0 || value > 10) {
-        throw new Error('يجب أن تكون درجة كل سؤال بين 0 و10.');
+      const questionMax = Number(input.max || 10);
+      if (!Number.isFinite(value) || value < 0 || value > questionMax) {
+        throw new Error('تأكد من أن درجة كل سؤال لا تتجاوز الدرجة المحددة له.');
       }
       score += value;
     });
@@ -1784,7 +1794,7 @@ async function saveAutomaticStudentScore(answerId, correctFields, maxScore) {
 
     const automaticScore = gradeInputs.reduce((sum, input) => {
       const fieldId = input.getAttribute('data-field-id');
-      return sum + (correctFields.includes(fieldId) ? 10 : 0);
+      return sum + (correctFields.includes(fieldId) ? Number(input.max || 10) : 0);
     }, 0);
     const wasAdjusted = score !== automaticScore;
 
