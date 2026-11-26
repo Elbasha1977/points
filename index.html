@@ -1712,6 +1712,12 @@ async function loadStudentAnswers() {
         const writingResult = isWriting ? gradeWritingSentence(value, fieldDef.section + ' ' + fieldDef.context) : null;
         const expectedAnswers = hasKey ? String(answerKey[fieldId]).split('||').map(norm) : [];
         const isDragOrder = !!(fieldDef && fieldDef.type === 'drag_order');
+        const isVerbCorrection = !!(fieldDef && fieldDef.type === 'correct_verb');
+        const studentTokens = norm(value).split(/[^a-z0-9']+/).filter(Boolean);
+        const verbTokenMatch = isVerbCorrection && expectedAnswers.some(expected => {
+          const expectedTokens = String(expected).split(/[^a-z0-9']+/).filter(Boolean);
+          return expectedTokens.length === 1 && studentTokens.includes(expectedTokens[0]);
+        });
         const isPassageShortAnswer = !!(fieldDef && /reading/i.test(String(fieldDef.section || '')) && fieldDef.type !== 'choice');
         let isKeywordMatch = false;
         if (isPassageShortAnswer && hasKey && norm(value)) {
@@ -1721,7 +1727,7 @@ async function loadStudentAnswers() {
           isKeywordMatch = studentWords.some(word=>keyWords.has(word));
         }
         const isCorrect = isDragOrder ? (hasKey && expectedAnswers.includes(norm(value))) :
-          (isWriting ? writingResult.score === 1 : (hasKey && (expectedAnswers.includes(norm(value)) || isKeywordMatch)));
+          (isWriting ? writingResult.score === 1 : (hasKey && (expectedAnswers.includes(norm(value)) || isKeywordMatch || verbTokenMatch)));
         if (hasKey || isWriting) {
           gradedCount++;
           if (isCorrect) { correctFields.push(fieldId); correctCount++; suggestedScore += fieldPoints; }
