@@ -34,7 +34,7 @@ jobs:
           if (new Set(classes).size !== 3) throw new Error('Class scope check failed.');
           console.log('Question bank OK:', data.fields.length, 'questions;', data.maxScore, 'marks;', Object.keys(data.answerKey).length, 'answer keys.');
           NODE
-      - name: Check student portal inline JavaScript syntax
+      - name: Check manager inline JavaScript syntax
         run: |
           python3 - <<'PY'
           from html.parser import HTMLParser
@@ -57,7 +57,12 @@ jobs:
           print('Extracted',len(p.items),'inline script blocks.')
           PY
           for f in /tmp/student-script-*.js; do node --check "$f"; done
-      - name: Check manager inline JavaScript syntax
+      - name: Checkout student portal source
+        uses: actions/checkout@v4
+        with:
+          repository: Elbasha1977/points-student
+          path: student-portal
+      - name: Check student portal inline JavaScript syntax
         run: |
           python3 - <<'PY'
           from html.parser import HTMLParser
@@ -74,9 +79,9 @@ jobs:
                   if tag.lower()=='script' and self.active:
                       if not self.external and ''.join(self.buf).strip(): self.items.append(''.join(self.buf))
                       self.active=False; self.external=False; self.buf=[]
-          p=Scripts(); p.feed(Path('index.html').read_text(encoding='utf-8'))
+          p=Scripts(); p.feed(Path('student-portal/index.html').read_text(encoding='utf-8'))
           for i,src in enumerate(p.items):
-              Path('/tmp/manager-script-%02d.js'%i).write_text(src,encoding='utf-8')
-          print('Extracted',len(p.items),'inline script blocks.')
+              Path('/tmp/student-portal-script-%02d.js'%i).write_text(src,encoding='utf-8')
+          print('Extracted',len(p.items),'student portal script blocks.')
           PY
-          for f in /tmp/manager-script-*.js; do node --check "$f"; done
+          for f in /tmp/student-portal-script-*.js; do node --check "$f"; done
