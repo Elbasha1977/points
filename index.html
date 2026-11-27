@@ -820,6 +820,19 @@ function openLiveWorksheets() {
     showLwsList(); 
 }
 
+// فتح نافذة Live Worksheets تلقائياً عند الوصول من اختصار برنامج الموظفين.
+(function(){
+  try{
+    const params=new URLSearchParams(window.location.search);
+    if(params.get('openLiveWorksheets')!=='1')return;
+    const openWhenReady=()=>{if(firebase.auth().currentUser){openLiveWorksheets();return true;}return false;};
+    if(openWhenReady())return;
+    const unsubscribe=firebase.auth().onAuthStateChanged(user=>{
+      if(user){openLiveWorksheets();if(typeof unsubscribe==='function')unsubscribe();}
+    });
+  }catch(e){console.warn('تعذر فتح Live Worksheets تلقائياً:',e);}
+})();
+
 function closeLiveWorksheets() { 
     document.getElementById('liveWorksheetsModal').style.display = 'none'; 
 }
